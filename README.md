@@ -23,20 +23,5 @@ Some example expressions:
 ## Merges
 Merges are simple data merges of the manifest with another yaml file. Merges apply only at the root level. To merge a field use the `merge` function in an expression.
 
-## Example calls
-Where `namespace.yaml` looks like:
-```
-metadata:
-  namespace: kpatch
-```
-
-And `common-labels.yaml`:
-```
-metadata:
-  labels:
-    timestamp: 1234567890
-```
-
-```
-helm template istio | kpatch -s 'kind=="rule" && metadata.name=="stdio"' -e "drop()" | kpatch -m namespace.yaml -m common-labels.yaml
-```
+## Examples
+See [examples](examples)
