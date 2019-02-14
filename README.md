@@ -1,4 +1,4 @@
-# kpatch
+# kpatch [![Build Status](https://travis-ci.org/mikesimons/kpatch.svg?branch=master)](https://travis-ci.org/mikesimons/kpatch)
 
 kpatch is a tool to manipulate Kubernetes manifests. It is designed to be used in build pipelines in a manner similar to standard unix tools.
 
