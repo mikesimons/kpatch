@@ -1,0 +1,20 @@
+hash: d99f84c1e935b64fdfcc419f1de01883c0aa2e6e93f2f51ef4b6d5e3d2738740
+updated: 2019-02-14T01:03:16.925974+01:00
+imports:
+- name: github.com/imdario/mergo
+  version: 7c29201646fa3de8506f701213473dd407f19646
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/mikesimons/traverser
+  version: 55d704272e603bc2173eb1f46443bea093f3df8c
+- name: github.com/PaesslerAG/gval
+  version: 897b4c7e88680db24629a2a39642c35017a235f4
+- name: github.com/PaesslerAG/jsonpath
+  version: 13fe51c7d94052f3f4d91bf4495c2bde50c2dfac
+- name: github.com/spf13/cobra
+  version: ef82de70bb3f60c65fb8eebacbb2d122ef517385
+- name: github.com/spf13/pflag
+  version: 916c5bf2d89aff6fd3e10e7811337218dfa81cb5
+- name: gopkg.in/yaml.v2
+  version: 51d6538a90f86fe93ac480b35f37b2be17fef232
+testImports: []

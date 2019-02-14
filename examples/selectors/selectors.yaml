@@ -1,0 +1,17 @@
+type: thing
+name: thing1
+some:
+  data: data
+---
+type: thing
+name: thing2
+some:
+  data: data
+---
+type: thing
+name: thing3
+some:
+  - otherdata
+---
+type: cat
+name: cat in a hat

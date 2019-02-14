@@ -1,0 +1,14 @@
+package: github.com/mikesimons/kpatch
+import:
+- package: github.com/PaesslerAG/gval
+  version: 897b4c7
+- package: github.com/imdario/mergo
+  version: ^0.3.7
+- package: github.com/mikesimons/traverser
+  version: ^0.2.0
+- package: github.com/spf13/cobra
+  version: ^0.0.3
+- package: gopkg.in/yaml.v2
+  version: ^2.2.2
+- package: github.com/PaesslerAG/jsonpath
+  version: 13fe51c
