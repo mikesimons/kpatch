@@ -5,7 +5,7 @@ else
 endif
 
 name=kpatch
-version=$(shell git describe --all --dirty --long | awk -F"-|/" '/^heads/ {print $$2 "." substr($$4, 2) "." $$5}; /^tags/ { print $$2 }')
+version=$(shell git describe --all --dirty --long | awk -F"-|/" '/^heads/ {print $$2 "." substr($$4, 2)}; /^tags/ { print $$2 }')
 build_args=-ldflags "-X main.versionString=$(version)"
 
 .PHONY: test dev-deps
