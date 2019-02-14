@@ -6,6 +6,9 @@ kpatch was born out of a frustration with helm manifests needing tweaking and ku
 
 It is based around three very simple features; `selectors`, `expressions` and `merges`.
 
+## WIP :boom:
+kpatch is still in early development but has been released early as it does most of what I'd intended it to. There are definitely edge cases that will cause a panic. I do not anticipate the expression language nor command line usage to change in incompatible ways but given the early days reserve the right. Code structure will definitely change.
+
 ## Selectors
 Selectors use [gval]() to match manifests to process. If a manifest does not match the selector it is printed as it was read.
 Some example selectors:
@@ -24,4 +27,29 @@ Some example expressions:
 Merges are simple data merges of the manifest with another yaml file. Merges apply only at the root level. To merge a field use the `merge` function in an expression.
 
 ## Examples
-See [examples](examples)
+For a more detailed set of examples, see [examples](examples)
+
+Append a suffix to service names
+```
+kpatch -s 'kind == "Service"' -e 'metadata.name = metadata.name + "-service"' myyaml.yaml
+```
+
+Delete a document
+```
+kpatch -s 'metadata.name == "deleteme"' -e 'drop' myyaml.yaml
+```
+
+Merge common metadata in to namespace
+```
+cat myyaml.yaml | kpatch -s 'kind == "Namespace"' -m common-metadata.yaml
+```
+
+Apply multiple expressions (to all documents)
+```
+kpatch -e 'name = "test"' -e 'name = name + "-test"' -e 'foo = "bar"' myyaml.yaml
+```
+
+Chain usage
+```
+cat myyaml.yaml | kpatch -s 'kind == "rule"' -e 'drop' | kpatch -e 'name = name + "-test"'`
+```
