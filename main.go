@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/gob"
 	"io"
 	"io/ioutil"
@@ -147,6 +148,12 @@ func main() {
 				gval.Function("drop", func(args ...interface{}) (interface{}, error) {
 					drop = true
 					return nil, nil
+				}),
+				gval.Function("b64decode", func(args ...interface{}) (interface{}, error) {
+					return base64.StdEncoding.DecodeString(args[0].(string))
+				}),
+				gval.Function("b64encode", func(args ...interface{}) (interface{}, error) {
+					return base64.StdEncoding.EncodeToString([]byte(args[0].(string))), nil
 				}),
 				gval.InfixOperator("=", func(a, b interface{}) (interface{}, error) {
 					targets = append(
