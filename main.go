@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/mikesimons/traverser"
 
@@ -24,6 +25,11 @@ var versionString = "dev"
 type tTarget struct {
 	opFn   func() (traverser.Op, error)
 	target reflect.Value
+}
+
+type tSet struct {
+	key   string
+	value interface{}
 }
 
 func deepCopy(m map[interface{}]interface{}) (map[interface{}]interface{}, error) {
@@ -109,6 +115,7 @@ func main() {
 
 			// State
 			var targets []tTarget
+			var sets []tSet
 			drop := false
 
 			lang := gval.NewLanguage(gval.Full(),
@@ -140,6 +147,10 @@ func main() {
 					}
 
 					return out, nil
+				}),
+				gval.Function("set", func(args ...interface{}) (interface{}, error) {
+					sets = append(sets, tSet{key: args[0].(string), value: args[1]})
+					return nil, nil
 				}),
 				gval.Function("unset", func(args ...interface{}) (interface{}, error) {
 					targets = append(targets, tTarget{opFn: traverser.Unset, target: reflect.ValueOf(args[0])})
@@ -203,10 +214,17 @@ func main() {
 					if len(exprs) > 0 {
 						for _, expr := range exprs {
 							targets = make([]tTarget, 0)
+							sets = make([]tSet, 0)
 
 							_, err := lang.Evaluate(expr, thing)
 							if err != nil {
 								log.Fatalf("Error evaluating 'set' expression '%s': %s\n", expr, err)
+							}
+
+							for _, s := range sets {
+								if err = traverser.SetKey(&thing, strings.Split(s.key, "."), s.value); err != nil {
+									log.Fatalf("Could not set key '%s': %s", s.key, err)
+								}
 							}
 
 							t := &traverser.Traverser{
