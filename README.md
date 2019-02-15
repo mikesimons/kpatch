@@ -4,7 +4,7 @@ kpatch is a tool to manipulate Kubernetes manifests. It is designed to be used i
 
 kpatch was born out of a frustration with helm manifests needing tweaking and kustomizer having good manipulation capabilities but being locked behind a strange interface.
 
-It is based around three very simple features; `selectors`, `expressions` and `merges`.
+It is based around three very simple features; `selectors`, `actions` and `merges`.
 
 ## WIP :boom:
 kpatch is still in early development but has been released early as it does most of what I'd intended it to. There are definitely edge cases that will cause a panic. I do not anticipate the expression language nor command line usage to change in incompatible ways but given the early days reserve the right. Code structure will definitely change.
@@ -16,8 +16,8 @@ Some example selectors:
 - `metadata.label.app == "my-app"`
 - `metadata.name =~ "^stdio"`
 
-## Expressions
-Expressions are manipulations that will be applied to resources. Manifests can be dropped, merged and modified.
+## Actions
+Action expressions are manipulations that will be applied to resources. Manifests can be dropped, merged and modified.
 Some example expressions:
 - `drop()` - Excludes the manifest from output
 - `metadata.name = metadata.name + "-my-suffix"` - Appends `-my-suffix` to `metadata.name` field.
@@ -31,12 +31,12 @@ For a more detailed set of examples, see [examples](examples)
 
 Append a suffix to service names
 ```
-kpatch -s 'kind == "Service"' -e 'metadata.name = metadata.name + "-service"' myyaml.yaml
+kpatch -s 'kind == "Service"' -a 'metadata.name = metadata.name + "-service"' myyaml.yaml
 ```
 
 Delete a document
 ```
-kpatch -s 'metadata.name == "deleteme"' -e 'drop' myyaml.yaml
+kpatch -s 'metadata.name == "deleteme"' -a 'drop' myyaml.yaml
 ```
 
 Merge common metadata in to namespace
@@ -44,12 +44,12 @@ Merge common metadata in to namespace
 cat myyaml.yaml | kpatch -s 'kind == "Namespace"' -m common-metadata.yaml
 ```
 
-Apply multiple expressions (to all documents)
+Apply multiple actions (to all documents)
 ```
-kpatch -e 'name = "test"' -e 'name = name + "-test"' -e 'foo = "bar"' myyaml.yaml
+kpatch -a 'name = "test"' -a 'name = name + "-test"' -a 'foo = "bar"' myyaml.yaml
 ```
 
 Chain usage
 ```
-cat myyaml.yaml | kpatch -s 'kind == "rule"' -e 'drop' | kpatch -e 'name = name + "-test"'`
+cat myyaml.yaml | kpatch -s 'kind == "rule"' -a 'drop' | kpatch -a 'name = name + "-test"'`
 ```

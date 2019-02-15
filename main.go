@@ -260,7 +260,7 @@ func main() {
 
 	cmd.Flags().StringVarP(&selector, "selector", "s", "", "Document selector to specify which to apply expressions / merges to.")
 	cmd.Flags().StringArrayVarP(&merges, "merge", "m", merges, "YAML/JSON file or inline YAML/JSON to merge with selected documents. May be used more than once.")
-	cmd.Flags().StringArrayVarP(&exprs, "expr", "e", exprs, "Expression to apply to selected documents. May be used more than once.")
+	cmd.Flags().StringArrayVarP(&exprs, "action", "a", exprs, "Action expression to apply to selected documents. May be used more than once.")
 
 	err := cmd.Execute()
 	if err != nil {

@@ -1,6 +1,6 @@
 # Selectors
 
-Selectors and expressions in kpatch use [gval](https://github.com/PaesslerAG/gval).
+Selectors and action expressions in kpatch use [gval](https://github.com/PaesslerAG/gval).
 The selector will be evaluated against each document in the input stream.
 
 Since gval is a pretty full featured expression language covering it all is not possible but listed below are some things to give you an idea.
@@ -9,7 +9,7 @@ We're using the (drop)[../drop] function to make it clear which documents are be
 
 ## Field match
 ```
-kpatch -s 'type == "thing"' -e 'drop' selectors.yaml
+kpatch -s 'type == "thing"' -a 'drop' selectors.yaml
 ```
 Output:
 ```
@@ -19,7 +19,7 @@ type: cat
 
 ## Negated field match
 ```
-kpatch -s 'name != "thing1"' -e 'drop' selectors.yaml
+kpatch -s 'name != "thing1"' -a 'drop' selectors.yaml
 ```
 Output:
 ```
@@ -31,7 +31,7 @@ type: thing
 
 ## Regex
 ```
-kpatch -s '!(name =~ ".*3$")' -e 'drop' selectors.yaml
+kpatch -s '!(name =~ ".*3$")' -a 'drop' selectors.yaml
 ```
 Output:
 ```
@@ -43,7 +43,7 @@ type: thing
 
 ## Combining with boolean expressions
 ```
-kpatch -s 'name == "thing1 || name == "thing2"' -e 'drop' selectors.yaml
+kpatch -s 'name == "thing1 || name == "thing2"' -a 'drop' selectors.yaml
 ```
 Output:
 ```
