@@ -218,7 +218,7 @@ func main() {
 
 							_, err := lang.Evaluate(expr, thing)
 							if err != nil {
-								log.Fatalf("Error evaluating 'set' expression '%s': %s\n", expr, err)
+								log.Fatalf("Error evaluating action expression '%s': %s\n", expr, err)
 							}
 
 							for _, s := range sets {
