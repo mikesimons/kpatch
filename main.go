@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -116,6 +118,7 @@ func main() {
 			// State
 			var targets []tTarget
 			var sets []tSet
+			missingKeyMode := "get"
 			drop := false
 
 			lang := gval.NewLanguage(gval.Full(),
@@ -166,17 +169,58 @@ func main() {
 				gval.Function("b64encode", func(args ...interface{}) (interface{}, error) {
 					return base64.StdEncoding.EncodeToString([]byte(args[0].(string))), nil
 				}),
-				gval.InfixOperator("=", func(a, b interface{}) (interface{}, error) {
-					targets = append(
-						targets,
-						tTarget{
-							opFn: func() (traverser.Op, error) {
-								return traverser.Set(reflect.ValueOf(b))
+				gval.InfixEvalOperator("=", func(a, b gval.Evaluable) (gval.Evaluable, error) {
+					if !b.IsConst() {
+						return func(c context.Context, o interface{}) (interface{}, error) {
+							missingKeyMode = "set"
+							target, err := a.EvalInterface(c, o)
+							if err != nil {
+								return nil, err
+							}
+
+							missingKeyMode = "get"
+							val, err := b.EvalInterface(c, o)
+
+							if err != nil {
+								return nil, err
+							}
+
+							targets = append(
+								targets,
+								tTarget{
+									opFn: func() (traverser.Op, error) {
+										return traverser.Set(reflect.ValueOf(val))
+									},
+									target: reflect.ValueOf(interface{}(target)),
+								},
+							)
+							return nil, nil
+						}, nil
+					}
+					val, err := b.EvalInterface(nil, nil)
+					if err != nil {
+						return nil, err
+					}
+
+					return func(c context.Context, v interface{}) (interface{}, error) {
+						missingKeyMode = "set"
+						target, err := a.EvalInterface(c, v)
+						if err != nil {
+							return nil, err
+						}
+
+						missingKeyMode = "get"
+						targets = append(
+							targets,
+							tTarget{
+								opFn: func() (traverser.Op, error) {
+									return traverser.Set(reflect.ValueOf(val))
+								},
+								target: reflect.ValueOf(target),
 							},
-							target: reflect.ValueOf(a),
-						},
-					)
-					return b, nil
+						)
+						return nil, nil
+					}, nil
 				}),
 			)
 
@@ -185,6 +229,21 @@ func main() {
 				if len(thing) == 0 {
 					continue
 				}
+
+				lang.MissingVarHandler(func(keys []string, index int) (interface{}, error) {
+					if missingKeyMode == "set" {
+						err := traverser.SetKey(&thing, keys, "")
+						if err != nil {
+							return nil, err
+						}
+						return traverser.GetKey(&thing, keys)
+					} else {
+						if index == len(keys)-1 {
+							return "", nil
+						}
+						return nil, fmt.Errorf("unknown parameter %s", strings.Join(keys[:index+1], "."))
+					}
+				})
 
 				var value interface{}
 				if selector != "" {

@@ -1,5 +1,5 @@
-hash: d99f84c1e935b64fdfcc419f1de01883c0aa2e6e93f2f51ef4b6d5e3d2738740
-updated: 2019-02-14T01:03:16.925974+01:00
+hash: bfa44a6d098c1842d62d55bee712cc8d57ac8e1533db4f1c3b1e48b5a4650c13
+updated: 2019-02-17T00:54:15.334306+01:00
 imports:
 - name: github.com/imdario/mergo
   version: 7c29201646fa3de8506f701213473dd407f19646
@@ -8,7 +8,9 @@ imports:
 - name: github.com/mikesimons/traverser
   version: 55d704272e603bc2173eb1f46443bea093f3df8c
 - name: github.com/PaesslerAG/gval
-  version: 897b4c7e88680db24629a2a39642c35017a235f4
+  version: 60a07a4a94e8da188c62e178c51f737faeefe119
+  repo: git@github.com:mikesimons/gval
+  vcs: git
 - name: github.com/PaesslerAG/jsonpath
   version: 13fe51c7d94052f3f4d91bf4495c2bde50c2dfac
 - name: github.com/spf13/cobra
@@ -17,4 +19,78 @@ imports:
   version: 916c5bf2d89aff6fd3e10e7811337218dfa81cb5
 - name: gopkg.in/yaml.v2
   version: 51d6538a90f86fe93ac480b35f37b2be17fef232
-testImports: []
+testImports:
+- name: github.com/hpcloud/tail
+  version: a1dbeea552b7c8df4b542c66073e393de198a800
+  subpackages:
+  - ratelimiter
+  - util
+  - watch
+  - winfile
+- name: github.com/onsi/ginkgo
+  version: 2e1be8f7d90e9d3e3e58b0ce470f2f14d075406f
+  subpackages:
+  - config
+  - internal/codelocation
+  - internal/containernode
+  - internal/failer
+  - internal/leafnodes
+  - internal/remote
+  - internal/spec
+  - internal/spec_iterator
+  - internal/specrunner
+  - internal/suite
+  - internal/testingtproxy
+  - internal/writer
+  - reporters
+  - reporters/stenographer
+  - reporters/stenographer/support/go-colorable
+  - reporters/stenographer/support/go-isatty
+  - types
+- name: github.com/onsi/gomega
+  version: 65fb64232476ad9046e57c26cd0bff3d3a8dc6cd
+  subpackages:
+  - format
+  - internal/assertion
+  - internal/asyncassertion
+  - internal/oraclematcher
+  - internal/testingtsupport
+  - matchers
+  - matchers/support/goraph/bipartitegraph
+  - matchers/support/goraph/edge
+  - matchers/support/goraph/node
+  - matchers/support/goraph/util
+  - types
+- name: golang.org/x/net
+  version: cbe0f9307d0156177f9dd5dc85da1a31abc5f2fb
+  subpackages:
+  - html
+  - html/atom
+  - html/charset
+- name: golang.org/x/sys
+  version: f6cff0780e542efa0c8e864dc8fa522808f6a598
+  subpackages:
+  - unix
+- name: golang.org/x/text
+  version: 27420a1a391f5504f73155051cd274311bf70883
+  subpackages:
+  - encoding
+  - encoding/charmap
+  - encoding/htmlindex
+  - encoding/internal
+  - encoding/internal/identifier
+  - encoding/japanese
+  - encoding/korean
+  - encoding/simplifiedchinese
+  - encoding/traditionalchinese
+  - encoding/unicode
+  - internal/language
+  - internal/tag
+  - internal/utf8internal
+  - language
+  - runes
+  - transform
+- name: gopkg.in/fsnotify/fsnotify.v1
+  version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
+- name: gopkg.in/tomb.v1
+  version: c131134a1947e9afd9cecfe11f4c6dff0732ae58
