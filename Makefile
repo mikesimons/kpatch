@@ -36,7 +36,7 @@ dev-deps:
 
 test:
 	golangci-lint run
-	go test
+	go test ./...
 
 clean:
 	rm build/*
