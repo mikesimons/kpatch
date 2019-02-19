@@ -1,9 +1,7 @@
 package: github.com/mikesimons/kpatch
 import:
 - package: github.com/PaesslerAG/gval
-  vcs: git
-  repo: git@github.com:mikesimons/gval
-  version: missing-handler-fn
+  version: c23e63d
 - package: github.com/imdario/mergo
   version: ^0.3.7
 - package: github.com/mikesimons/traverser

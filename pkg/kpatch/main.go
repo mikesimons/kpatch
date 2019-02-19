@@ -97,9 +97,26 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 		var sets []tSet
 		missingKeyMode := "get"
 		drop := false
+		thing := make(map[interface{}]interface{})
 
 		lang := gval.NewLanguage(gval.Full(),
 			jsonpath.Language(),
+			gval.VariableSelector(func(path gval.Evaluables) gval.Evaluable {
+				return func(c context.Context, v interface{}) (interface{}, error) {
+					keys, _ := path.EvalStrings(c, v)
+					val, err := traverser.GetKey(&thing, keys)
+
+					if err != nil && missingKeyMode == "set" {
+						err := traverser.SetKey(&thing, keys, "")
+						if err != nil {
+							return nil, err
+						}
+						return traverser.GetKey(&thing, keys)
+					}
+
+					return val, err
+				}
+			}),
 			gval.Function("yaml", func(args ...interface{}) (interface{}, error) {
 				var out interface{}
 				var err error
@@ -150,13 +167,13 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 				if !b.IsConst() {
 					return func(c context.Context, o interface{}) (interface{}, error) {
 						missingKeyMode = "set"
-						target, err := a.EvalInterface(c, o)
+						target, err := a(c, o)
 						if err != nil {
 							return nil, err
 						}
 
 						missingKeyMode = "get"
-						val, err := b.EvalInterface(c, o)
+						val, err := b(c, o)
 
 						if err != nil {
 							return nil, err
@@ -174,14 +191,14 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 						return nil, nil
 					}, nil
 				}
-				val, err := b.EvalInterface(nil, nil)
+				val, err := b(nil, nil)
 				if err != nil {
 					return nil, err
 				}
 
 				return func(c context.Context, v interface{}) (interface{}, error) {
 					missingKeyMode = "set"
-					target, err := a.EvalInterface(c, v)
+					target, err := a(c, v)
 					if err != nil {
 						return nil, err
 					}
@@ -201,26 +218,10 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 			}),
 		)
 
-		thing := make(map[interface{}]interface{})
 		for decoder.Decode(&thing) == nil {
 			if len(thing) == 0 {
 				continue
 			}
-
-			lang.MissingVarHandler(func(keys []string, index int) (interface{}, error) {
-				if missingKeyMode == "set" {
-					err := traverser.SetKey(&thing, keys, "")
-					if err != nil {
-						return nil, err
-					}
-					return traverser.GetKey(&thing, keys)
-				} else {
-					if index == len(keys)-1 {
-						return "", nil
-					}
-					return nil, fmt.Errorf("unknown parameter %s", strings.Join(keys[:index+1], "."))
-				}
-			})
 
 			var value interface{}
 			if selector != "" {

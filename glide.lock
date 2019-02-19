@@ -1,5 +1,5 @@
-hash: bfa44a6d098c1842d62d55bee712cc8d57ac8e1533db4f1c3b1e48b5a4650c13
-updated: 2019-02-17T00:54:15.334306+01:00
+hash: c80e0581dbcf05c6ac0db0e9e6791d9a1c01d58e07df6ef2a2d9b6153d002b29
+updated: 2019-02-19T10:00:36.917614+01:00
 imports:
 - name: github.com/imdario/mergo
   version: 7c29201646fa3de8506f701213473dd407f19646
@@ -8,15 +8,37 @@ imports:
 - name: github.com/mikesimons/traverser
   version: 55d704272e603bc2173eb1f46443bea093f3df8c
 - name: github.com/PaesslerAG/gval
-  version: 60a07a4a94e8da188c62e178c51f737faeefe119
-  repo: git@github.com:mikesimons/gval
-  vcs: git
+  version: c23e63d399d6650a8b8ad401a275a16a24c1a00e
 - name: github.com/PaesslerAG/jsonpath
   version: 13fe51c7d94052f3f4d91bf4495c2bde50c2dfac
+- name: github.com/spf13/afero
+  version: d40851caa0d747393da1ffb28f7f9d8b4eeffebd
+  subpackages:
+  - mem
 - name: github.com/spf13/cobra
   version: ef82de70bb3f60c65fb8eebacbb2d122ef517385
 - name: github.com/spf13/pflag
   version: 916c5bf2d89aff6fd3e10e7811337218dfa81cb5
+- name: golang.org/x/text
+  version: 27420a1a391f5504f73155051cd274311bf70883
+  subpackages:
+  - encoding
+  - encoding/charmap
+  - encoding/htmlindex
+  - encoding/internal
+  - encoding/internal/identifier
+  - encoding/japanese
+  - encoding/korean
+  - encoding/simplifiedchinese
+  - encoding/traditionalchinese
+  - encoding/unicode
+  - internal/language
+  - internal/tag
+  - internal/utf8internal
+  - language
+  - runes
+  - transform
+  - unicode/norm
 - name: gopkg.in/yaml.v2
   version: 51d6538a90f86fe93ac480b35f37b2be17fef232
 testImports:
@@ -71,25 +93,6 @@ testImports:
   version: f6cff0780e542efa0c8e864dc8fa522808f6a598
   subpackages:
   - unix
-- name: golang.org/x/text
-  version: 27420a1a391f5504f73155051cd274311bf70883
-  subpackages:
-  - encoding
-  - encoding/charmap
-  - encoding/htmlindex
-  - encoding/internal
-  - encoding/internal/identifier
-  - encoding/japanese
-  - encoding/korean
-  - encoding/simplifiedchinese
-  - encoding/traditionalchinese
-  - encoding/unicode
-  - internal/language
-  - internal/tag
-  - internal/utf8internal
-  - language
-  - runes
-  - transform
 - name: gopkg.in/fsnotify/fsnotify.v1
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: gopkg.in/tomb.v1
