@@ -14,12 +14,9 @@ import (
 	"github.com/mikesimons/traverser"
 
 	"github.com/PaesslerAG/gval"
-	"github.com/PaesslerAG/jsonpath"
 	"github.com/imdario/mergo"
 	yaml "gopkg.in/yaml.v2"
 )
-
-var versionString = "dev"
 
 type tTarget struct {
 	opFn   func() (traverser.Op, error)
@@ -33,7 +30,7 @@ type tSet struct {
 
 func getInputBytes(input string) ([]byte, error) {
 	_, err := os.Stat(input)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return []byte(input), nil
 	}
 
@@ -70,10 +67,9 @@ func getMergeData(merges []string) ([]map[interface{}]interface{}, error) {
 	return mergeData, nil
 }
 
-func Run(args []string, selector string, merges []string, exprs []string) {
+func Run(args []string, selector string, merges []string, exprs []string, output io.WriteCloser) {
 	var err error
 	var input io.Reader
-	output := os.Stdout
 	defer output.Close()
 	encoder := yaml.NewEncoder(output)
 
@@ -100,7 +96,6 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 		thing := make(map[interface{}]interface{})
 
 		lang := gval.NewLanguage(gval.Full(),
-			jsonpath.Language(),
 			gval.VariableSelector(func(path gval.Evaluables) gval.Evaluable {
 				return func(c context.Context, v interface{}) (interface{}, error) {
 					keys, _ := path.EvalStrings(c, v)
@@ -125,7 +120,7 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 					return val, err
 				}
 			}),
-			gval.Function("yaml", func(args ...interface{}) (interface{}, error) {
+			gval.Function("parse_yaml", func(args ...interface{}) (interface{}, error) {
 				var out interface{}
 				var err error
 				bytes, err := getInputBytes(args[0].(string))
@@ -134,6 +129,10 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 				}
 				err = yaml.Unmarshal(bytes, &out)
 				return out, err
+			}),
+			gval.Function("dump_yaml", func(args ...interface{}) (interface{}, error) {
+				r, err := yaml.Marshal(args[0])
+				return string(r), err
 			}),
 			gval.Function("merge", func(args ...interface{}) (interface{}, error) {
 				var err error
@@ -153,6 +152,13 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 
 				return out, nil
 			}),
+			gval.Function("var", func(args ...interface{}) (interface{}, error) {
+				strArgs := make([]string, 0)
+				for _, a := range args {
+					strArgs = append(strArgs, a.(string))
+				}
+				return traverser.GetKey(&thing, strArgs)
+			}),
 			gval.Function("set", func(args ...interface{}) (interface{}, error) {
 				sets = append(sets, tSet{key: args[0].(string), value: args[1]})
 				return nil, nil
@@ -166,7 +172,8 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 				return nil, nil
 			}),
 			gval.Function("b64decode", func(args ...interface{}) (interface{}, error) {
-				return base64.StdEncoding.DecodeString(args[0].(string))
+				r, err := base64.StdEncoding.DecodeString(args[0].(string))
+				return string(r), err
 			}),
 			gval.Function("b64encode", func(args ...interface{}) (interface{}, error) {
 				return base64.StdEncoding.EncodeToString([]byte(args[0].(string))), nil
