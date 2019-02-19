@@ -104,6 +104,14 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 			gval.VariableSelector(func(path gval.Evaluables) gval.Evaluable {
 				return func(c context.Context, v interface{}) (interface{}, error) {
 					keys, _ := path.EvalStrings(c, v)
+
+					if keys[0] == "__root" {
+						if len(keys) == 1 {
+							return thing, nil
+						}
+						keys = keys[1:]
+					}
+
 					val, err := traverser.GetKey(&thing, keys)
 
 					if err != nil && missingKeyMode == "set" {
@@ -179,6 +187,11 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 							return nil, err
 						}
 
+						if reflect.ValueOf(target) == reflect.ValueOf(thing) {
+							thing = val.(map[interface{}]interface{})
+							return nil, nil
+						}
+
 						targets = append(
 							targets,
 							tTarget{
@@ -201,6 +214,11 @@ func Run(args []string, selector string, merges []string, exprs []string) {
 					target, err := a(c, v)
 					if err != nil {
 						return nil, err
+					}
+
+					if reflect.ValueOf(target) == reflect.ValueOf(thing) {
+						thing = val.(map[interface{}]interface{})
+						return nil, nil
 					}
 
 					missingKeyMode = "get"
