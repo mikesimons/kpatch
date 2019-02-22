@@ -1,8 +1,12 @@
+---
 name: input1document1
 maptype:
   k1:
     k1: "l2value"
-  k2: [ 1, 2, 3 ]
+  k2:
+    - 1
+    - 2
+    - 3
 ---
 name: input1document2
 list:

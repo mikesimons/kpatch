@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ansel1/merry"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/afero"
@@ -18,28 +20,19 @@ func TestKpatch(t *testing.T) {
 	RunSpecs(t, "Kpatch Suite")
 }
 
-func dorun(fn func(f io.WriteCloser)) ([]byte, error) {
+func dorun(fn func(f io.WriteCloser)) []byte {
 	fs := afero.NewMemMapFs()
-	f, err := fs.OpenFile("output.yaml", os.O_CREATE|os.O_WRONLY, os.ModeAppend)
-	if err != nil {
-		return []byte{}, err
-	}
+	f, _ := fs.OpenFile("output.yaml", os.O_CREATE|os.O_WRONLY, os.ModeAppend)
 
-	Run([]string{"testdata/input1.yaml"}, "name == \"input1document1\"", []string{}, []string{"drop"}, f)
+	fn(f)
 	f.Close()
 
-	f, err = fs.Open("output.yaml")
-	if err != nil {
-		return []byte{}, err
-	}
+	f, _ = fs.Open("output.yaml")
 	defer f.Close()
 
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return []byte{}, err
-	}
+	data, _ := ioutil.ReadAll(f)
 
-	return data, nil
+	return data
 }
 
 func decodeDocs(input []byte) []map[interface{}]interface{} {
@@ -105,26 +98,94 @@ var _ = Describe("Kpatch", func() {
 	})
 
 	Describe("Run", func() {
-		PIt("should process multiple inputs with multiple documents in each")
-		PIt("should apply all actions to documents that match the selector")
-		PIt("should print documents without processing that do not match the selector")
-		PIt("should merge with documents that match selector")
+		It("should process multiple inputs with multiple documents in each", func() {
+			data := dorun(func(f io.WriteCloser) {
+				Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{}, f)
+			})
+
+			docs := decodeDocs(data)
+			Expect(docs).To(HaveLen(4))
+		})
+
+		It("should apply all actions to documents that match the selector", func() {
+			data := dorun(func(f io.WriteCloser) {
+				Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document2\"", []string{}, []string{"test1 = 1", "test2 = 2"}, f)
+			})
+
+			docs := decodeDocs(data)
+			Expect(docs).To(HaveLen(4))
+			for i, doc := range docs {
+				if i%2 == 0 {
+					Expect(doc["test1"]).To(BeNil())
+					Expect(doc["test2"]).To(BeNil())
+				} else {
+					Expect(doc["test1"]).To(Equal(1))
+					Expect(doc["test2"]).To(Equal(2))
+				}
+			}
+		})
+
+		It("should print documents without processing that do not match the selector", func() {
+			data := dorun(func(f io.WriteCloser) {
+				Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "false", []string{}, []string{}, f)
+			})
+
+			docs := decodeDocs(data)
+			Expect(docs).To(HaveLen(4))
+		})
 
 		Describe("selector", func() {
-			PIt("should match documents that match expression")
-			PIt("should not match documents that do not match expression")
-			PIt("should not allow mutating functions or assignments")
-			PIt("should match all documents if not specified")
+			It("should only match documents that match expression", func() {
+				data := dorun(func(f io.WriteCloser) {
+					Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document1\"", []string{}, []string{"drop"}, f)
+				})
+
+				docs := decodeDocs(data)
+
+				Expect(docs).To(HaveLen(2))
+				Expect(docs[0]["name"]).To(Equal("input1document2"))
+				Expect(docs[1]["name"]).To(Equal("input2document2"))
+			})
+
+			It("should not allow assignments in selector", func() {
+				var e error
+				dorun(func(f io.WriteCloser) {
+					e = Run([]string{"testdata/input1.yaml"}, "test = 123", []string{}, []string{}, f)
+				})
+
+				Expect(e).NotTo(BeNil())
+				Expect(merry.UserMessage(e)).To(ContainSubstring("unexpected \"=\""))
+			})
+
+			// TODO: Expand to other mutating functions (e.g. merge)
+			It("should not allow mutating functions in selector", func() {
+				var e error
+				dorun(func(f io.WriteCloser) {
+					e = Run([]string{"testdata/input1.yaml"}, "unset(name)", []string{}, []string{}, f)
+				})
+
+				Expect(e).NotTo(BeNil())
+				Expect(merry.UserMessage(e)).To(ContainSubstring("could not call 'unset'"))
+			})
+
+			It("should match all documents if not specified", func() {
+				data := dorun(func(f io.WriteCloser) {
+					Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{"drop"}, f)
+				})
+
+				docs := decodeDocs(data)
+
+				Expect(docs).To(HaveLen(0))
+			})
 		})
 
 		Describe("Action language", func() {
 			Describe("drop", func() {
 				It("should drop matching documents", func() {
-					data, err := dorun(func(f io.WriteCloser) {
+					data := dorun(func(f io.WriteCloser) {
 						Run([]string{"testdata/input1.yaml"}, "name == \"input1document1\"", []string{}, []string{"drop"}, f)
 					})
 
-					Expect(err).To(BeNil())
 					docs := decodeDocs(data)
 					names := make([]string, 0)
 					for _, doc := range docs {
@@ -137,9 +198,35 @@ var _ = Describe("Kpatch", func() {
 			})
 
 			Describe("assign", func() {
-				PIt("should set field if action is assignment")
-				PIt("should create key if key on left hand side does not exist")
-				PIt("should error if key on right hand side does not exist")
+				It("should set field if action is assignment", func() {
+					data := dorun(func(f io.WriteCloser) {
+						Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"maptype = \"hello\""}, f)
+					})
+
+					docs := decodeDocs(data)
+
+					Expect(docs[0]["maptype"]).To(Equal("hello"))
+				})
+
+				It("should create key if key on left hand side does not exist", func() {
+					data := dorun(func(f io.WriteCloser) {
+						Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"newval = \"hello\""}, f)
+					})
+
+					docs := decodeDocs(data)
+
+					Expect(docs[0]["newval"]).To(Equal("hello"))
+				})
+
+				It("should error if key on right hand side does not exist", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"maptype = noexist"}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("noexist: key does not exist"))
+				})
 			})
 
 			Describe("unset", func() {

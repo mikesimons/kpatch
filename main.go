@@ -20,7 +20,10 @@ func main() {
 		Use:     "kpatch",
 		Version: versionString,
 		Run: func(cmd *cobra.Command, args []string) {
-			kpatch.Run(args, selector, merges, exprs, os.Stdout)
+			err := kpatch.Run(args, selector, merges, exprs, os.Stdout)
+			if err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 

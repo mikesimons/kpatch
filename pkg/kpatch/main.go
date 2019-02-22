@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"reflect"
 	"strings"
+
+	"github.com/ansel1/merry"
 
 	"github.com/mikesimons/traverser"
 
@@ -67,7 +68,7 @@ func getMergeData(merges []string) ([]map[interface{}]interface{}, error) {
 	return mergeData, nil
 }
 
-func Run(args []string, selector string, merges []string, exprs []string, output io.WriteCloser) {
+func Run(args []string, selector string, merges []string, exprs []string, output io.WriteCloser) error {
 	var err error
 	var input io.Reader
 	defer output.Close()
@@ -85,7 +86,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 		mergeData, err := getMergeData(merges)
 		if err != nil {
-			log.Fatal(err)
+			return merry.Wrap(err)
 		}
 
 		// State
@@ -252,7 +253,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 			if selector != "" {
 				value, err = gval.Evaluate(selector, thing)
 				if err != nil {
-					log.Fatalln("Error evaluating selector: ", err)
+					return merry.Wrap(err).WithUserMessagef("error evaluating selector: %s", err)
 				}
 			} else {
 				value = interface{}(true)
@@ -263,12 +264,12 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 					for _, m := range mergeData {
 						mCopy, err := deepCopy(m)
 						if err != nil {
-							log.Fatalln("Internal error copying merge data: ", err)
+							return merry.Wrap(err).WithUserMessagef("error copying merge data: %s", err)
 						}
 
 						err = mergo.Map(&thing, mCopy, mergo.WithOverride)
 						if err != nil {
-							log.Fatalln("Error merging merge: ", err)
+							return merry.Wrap(err).WithUserMessagef("error merging: %s", err)
 						}
 					}
 				}
@@ -280,12 +281,12 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 						_, err := lang.Evaluate(expr, thing)
 						if err != nil {
-							log.Fatalf("Error evaluating action expression '%s': %s\n", expr, err)
+							return merry.Wrap(err).WithUserMessagef("error evaluating action expression '%s': %s", expr, err)
 						}
 
 						for _, s := range sets {
 							if err = traverser.SetKey(&thing, strings.Split(s.key, "."), s.value); err != nil {
-								log.Fatalf("Could not set key '%s': %s", s.key, err)
+								return merry.Wrap(err).WithUserMessagef("could not set key '%s': %s", s.key, err)
 							}
 						}
 
@@ -301,7 +302,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 						}
 
 						if err = t.Traverse(reflect.ValueOf(thing)); err != nil {
-							log.Fatalln("Error applying changes: ", err)
+							return merry.Wrap(err).WithUserMessagef("error applying changes: %s", err)
 						}
 					}
 				}
@@ -309,7 +310,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 			if !drop {
 				if err = encoder.Encode(thing); err != nil {
-					log.Fatalln("Error encoding output:", err)
+					return merry.Wrap(err).WithUserMessagef("error encoding output: %s", err)
 				}
 			}
 
@@ -320,6 +321,8 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 	}
 
 	if err != nil {
-		log.Fatalln(err)
+		return merry.Wrap(err).WithUserMessagef("unknown error: %s", err)
 	}
+
+	return nil
 }
