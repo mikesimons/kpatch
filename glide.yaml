@@ -1,11 +1,13 @@
 package: github.com/mikesimons/kpatch
 import:
 - package: github.com/PaesslerAG/gval
-  version: c23e63d
+  vcs: git
+  repo: git@github.com:mikesimons/gval
+  version: custom-ident-runes
 - package: github.com/imdario/mergo
   version: ^0.3.7
 - package: github.com/mikesimons/traverser
-  version: ^0.2.0
+  version: ^0.2.1
 - package: github.com/spf13/cobra
   version: ^0.0.3
 - package: gopkg.in/yaml.v2

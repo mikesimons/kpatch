@@ -13,6 +13,7 @@ var Fs = afero.NewOsFs()
 
 func init() {
 	gob.Register(map[interface{}]interface{}{})
+	gob.Register([]interface{}{})
 }
 
 func deepCopy(m map[interface{}]interface{}) (map[interface{}]interface{}, error) {

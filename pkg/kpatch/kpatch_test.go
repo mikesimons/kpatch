@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/ansel1/merry"
@@ -94,6 +95,26 @@ var _ = Describe("Kpatch", func() {
 		It("should return nil when no more readers available", func() {
 			nextInput := inputReaderFn([]string{})
 			Expect(nextInput()).To(BeNil())
+		})
+	})
+
+	Describe("Reset", func() {
+		It("should reset all internal state", func() {
+			k := &kpatch{
+				targets:        make([]tTarget, 2),
+				drop:           true,
+				missingKeyMode: "xxx",
+				doc:            map[interface{}]interface{}{"XXX": "XXX"},
+				currentItem:    "one",
+			}
+
+			k.Reset()
+
+			Expect(k.targets).To(HaveLen(0))
+			Expect(k.drop).To(BeFalse())
+			Expect(k.missingKeyMode).To(Equal("get"))
+			Expect(k.doc).To(HaveLen(0))
+			Expect(k.currentItem).To(BeNil())
 		})
 	})
 
@@ -218,33 +239,129 @@ var _ = Describe("Kpatch", func() {
 					Expect(docs[0]["newval"]).To(Equal("hello"))
 				})
 
-				It("should error if key on right hand side does not exist", func() {
+				It("should assign nil if key on right hand side does not exist", func() {
 					var e error
-					dorun(func(f io.WriteCloser) {
+					data := dorun(func(f io.WriteCloser) {
 						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"maptype = noexist"}, f)
 					})
 
-					Expect(e).NotTo(BeNil())
-					Expect(merry.UserMessage(e)).To(ContainSubstring("noexist: key does not exist"))
+					Expect(e).To(BeNil())
+					docs := decodeDocs(data)
+
+					Expect(docs[0]["maptype"]).To(BeNil())
 				})
 			})
 
 			Describe("unset", func() {
-				PIt("should unset field if action is unset")
-				PIt("should ignore if key does not exist")
-				PIt("should error if argument count != 1")
+				It("should unset field", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset(name)"}, f)
+					})
+
+					docs := decodeDocs(data)
+
+					Expect(e).To(BeNil())
+					Expect(docs[0]["name"]).To(BeNil())
+				})
+
+				It("should unset multiple fields", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset(name, maptype)"}, f)
+					})
+
+					docs := decodeDocs(data)
+
+					Expect(e).To(BeNil())
+					Expect(docs[0]["name"]).To(BeNil())
+					Expect(docs[0]["maptype"]).To(BeNil())
+				})
+
+				It("should not do anything if key does not exist", func() {
+					var e error
+					before := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{}, f)
+					})
+
+					after := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset(n)"}, f)
+					})
+
+					Expect(e).To(BeNil())
+					Expect(before).To(Equal(after))
+				})
+
+				It("should error if argument count < 1", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset()"}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("unset(var, ...) requires one or more argument to unset"))
+				})
+			})
+
+			Describe("@ variable", func() {
+				It("should return root outside of pipeline", func() {
+					var e error
+					before := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{}, f)
+					})
+
+					after := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"tmp = @"}, f)
+					})
+
+					docsBefore := decodeDocs(before)
+					docs := decodeDocs(after)
+
+					Expect(e).To(BeNil())
+					Expect(docs[0]["tmp"]).NotTo(BeNil())
+					Expect(docs[0]["tmp"]).To(Equal(docsBefore[0]))
+				})
+
+				It("should return current item inside pipeline", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "name == \"input1document2\"", []string{}, []string{"list | @ = \"X\""}, f)
+					})
+
+					docs := decodeDocs(data)
+
+					Expect(e).To(BeNil())
+					Expect(docs[1]["list"]).To(HaveLen(3))
+
+					var items []string
+					for _, i := range docs[1]["list"].([]interface{}) {
+						items = append(items, i.(string))
+					}
+					Expect(strings.Join(items, ".")).To(Equal("X.X.X"))
+				})
+			})
+
+			Describe("v", func() {
+				PIt("should return var at path by args")
+				PIt("should return error if path invalid")
 			})
 
 			Describe("merge", func() {
 				PIt("should deep merge two documents")
 				PIt("should error if types are not maps")
-				PIt("should error if argument count != 2")
+				PIt("should error if argument count < 2")
 			})
 
-			Describe("yaml", func() {
+			Describe("parse_yaml", func() {
 				PIt("should parse yaml string provided")
 				PIt("should load yaml from filesystem if file exists")
 				PIt("should error if parse error")
+				PIt("should error if argument count != 1")
+			})
+
+			Describe("dump_yaml", func() {
+				PIt("should dump yaml string provided")
+				PIt("should error if input can't be marshalled")
 				PIt("should error if argument count != 1")
 			})
 
@@ -264,6 +381,24 @@ var _ = Describe("Kpatch", func() {
 				PIt("should bas64decode input")
 				PIt("should error on problem with decode")
 				PIt("should error if argument count != 1")
+			})
+
+			Describe("pipe operator", func() {
+				PIt("should invoke RHS for each element of LHS")
+				PIt("should make LHS a slice if it is not already")
+				PIt("should not onvoke RHS for nil elements")
+			})
+
+			Describe("if", func() {
+				PIt("should return the second argument if the first is true")
+				PIt("should return the third argument if the first is not true")
+				PIt("should accept two arguments and return nil if the first is not true")
+				PIt("should error if argument count > 3")
+				PIt("should error if argument count < 2")
+			})
+
+			Describe("nil", func() {
+				PIt("should return nil")
 			})
 		})
 	})

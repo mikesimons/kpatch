@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -89,37 +90,101 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 			return merry.Wrap(err)
 		}
 
-		// State
-		var targets []tTarget
-		var sets []tSet
-		missingKeyMode := "get"
-		drop := false
-		thing := make(map[interface{}]interface{})
+		kp := &kpatch{
+			missingKeyMode: "get",
+			doc:            make(map[interface{}]interface{}),
+		}
 
 		lang := gval.NewLanguage(gval.Full(),
+			gval.PostfixOperator("|", func(c context.Context, p *gval.Parser, e gval.Evaluable) (gval.Evaluable, error) {
+				// a = after operator
+				a, err := p.ParseExpression(c)
+				if err != nil {
+					return nil, err
+				}
+
+				return func(c context.Context, v interface{}) (interface{}, error) {
+
+					// x = before operator
+					x, err := e(c, v)
+					if err != nil {
+						return nil, err
+					}
+
+					// Make input a slice if it's not already
+					if reflect.ValueOf(x).Kind() != reflect.Slice {
+						x = []interface{}{x}
+					}
+
+					// Apply RHS for every element of LHS
+					var out []interface{}
+					for _, item := range x.([]interface{}) {
+						tmp := kp.currentItem
+						kp.currentItem = item
+						z, err := a(c, v)
+						if err != nil {
+							log.Fatal("pipeline error: ", err)
+						}
+						if z != nil {
+							out = append(out, z)
+						}
+						kp.currentItem = tmp
+					}
+
+					return out, nil
+				}, nil
+			}),
 			gval.VariableSelector(func(path gval.Evaluables) gval.Evaluable {
 				return func(c context.Context, v interface{}) (interface{}, error) {
+					var root interface{}
 					keys, _ := path.EvalStrings(c, v)
+					root = kp.doc
 
-					if keys[0] == "__root" {
-						if len(keys) == 1 {
-							return thing, nil
-						}
+					if keys[0] == "@" {
+						root = kp.currentItem
 						keys = keys[1:]
 					}
 
-					val, err := traverser.GetKey(&thing, keys)
+					if len(keys) == 0 {
+						return root, nil
+					}
 
-					if err != nil && missingKeyMode == "set" {
-						err := traverser.SetKey(&thing, keys, "")
+					val, err := traverser.GetKey(&root, keys)
+
+					if err != nil && kp.missingKeyMode == "set" {
+						err := traverser.SetKey(&root, keys, "")
 						if err != nil {
 							return nil, err
 						}
-						return traverser.GetKey(&thing, keys)
+						return traverser.GetKey(&root, keys)
 					}
+
+					err = nil
 
 					return val, err
 				}
+			}),
+			gval.Function("print", func(args ...interface{}) (interface{}, error) {
+				fmt.Print(args...)
+				return nil, nil
+			}),
+			gval.Function("if", func(args ...interface{}) (interface{}, error) {
+				var r1 interface{}
+				var r2 interface{}
+				if len(args) > 1 {
+					r1 = args[1]
+				}
+				if len(args) > 2 {
+					r2 = args[2]
+				}
+
+				if args[0] == true {
+					return r1, nil
+				}
+				return r2, nil
+			}),
+			gval.Function("nil", func(args ...interface{}) (interface{}, error) {
+				return nil, nil
 			}),
 			gval.Function("parse_yaml", func(args ...interface{}) (interface{}, error) {
 				var out interface{}
@@ -153,23 +218,16 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 				return out, nil
 			}),
-			gval.Function("var", func(args ...interface{}) (interface{}, error) {
-				strArgs := make([]string, 0)
-				for _, a := range args {
-					strArgs = append(strArgs, a.(string))
+			gval.Function("v", func(args ...interface{}) (interface{}, error) {
+				if len(args) == 1 {
+					args = append(args, "/")
 				}
-				return traverser.GetKey(&thing, strArgs)
+				strArgs := strings.Split(args[0].(string), args[1].(string))
+				return traverser.GetKey(&kp.doc, strArgs)
 			}),
-			gval.Function("set", func(args ...interface{}) (interface{}, error) {
-				sets = append(sets, tSet{key: args[0].(string), value: args[1]})
-				return nil, nil
-			}),
-			gval.Function("unset", func(args ...interface{}) (interface{}, error) {
-				targets = append(targets, tTarget{opFn: traverser.Unset, target: reflect.ValueOf(args[0])})
-				return nil, nil
-			}),
+			gval.Function("unset", kp.fnUnset),
 			gval.Function("drop", func(args ...interface{}) (interface{}, error) {
-				drop = true
+				kp.drop = true
 				return nil, nil
 			}),
 			gval.Function("b64decode", func(args ...interface{}) (interface{}, error) {
@@ -179,29 +237,43 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 			gval.Function("b64encode", func(args ...interface{}) (interface{}, error) {
 				return base64.StdEncoding.EncodeToString([]byte(args[0].(string))), nil
 			}),
+			gval.Function("B64ENCODE", func(args ...interface{}) (interface{}, error) {
+				val := base64.StdEncoding.EncodeToString([]byte(args[0].(string)))
+				kp.targets = append(kp.targets, tTarget{opFn: func() (traverser.Op, error) { return traverser.Set(reflect.ValueOf(val)) }, target: reflect.ValueOf(args[0])})
+				return nil, nil
+			}),
 			gval.InfixEvalOperator("=", func(a, b gval.Evaluable) (gval.Evaluable, error) {
 				if !b.IsConst() {
 					return func(c context.Context, o interface{}) (interface{}, error) {
-						missingKeyMode = "set"
-						target, err := a(c, o)
-						if err != nil {
-							return nil, err
-						}
-
-						missingKeyMode = "get"
+						kp.missingKeyMode = "get"
 						val, err := b(c, o)
 
 						if err != nil {
 							return nil, err
 						}
 
-						if reflect.ValueOf(target) == reflect.ValueOf(thing) {
-							thing = val.(map[interface{}]interface{})
+						if reflect.ValueOf(val) == reflect.ValueOf(kp.doc) {
+							val, err = deepCopy(kp.doc)
+							if err != nil {
+								log.Fatalln("Couldn't deep copy root: ", err)
+							}
+						}
+
+						kp.missingKeyMode = "set"
+						target, err := a(c, o)
+						if err != nil {
+							return nil, err
+						}
+
+						kp.missingKeyMode = "get"
+
+						if reflect.ValueOf(target) == reflect.ValueOf(kp.doc) {
+							kp.doc = val.(map[interface{}]interface{})
 							return nil, nil
 						}
 
-						targets = append(
-							targets,
+						kp.targets = append(
+							kp.targets,
 							tTarget{
 								opFn: func() (traverser.Op, error) {
 									return traverser.Set(reflect.ValueOf(val))
@@ -218,20 +290,20 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 				}
 
 				return func(c context.Context, v interface{}) (interface{}, error) {
-					missingKeyMode = "set"
+					kp.missingKeyMode = "set"
 					target, err := a(c, v)
 					if err != nil {
 						return nil, err
 					}
 
-					if reflect.ValueOf(target) == reflect.ValueOf(thing) {
-						thing = val.(map[interface{}]interface{})
+					if reflect.ValueOf(target) == reflect.ValueOf(kp.doc) {
+						kp.doc = val.(map[interface{}]interface{})
 						return nil, nil
 					}
 
-					missingKeyMode = "get"
-					targets = append(
-						targets,
+					kp.missingKeyMode = "get"
+					kp.targets = append(
+						kp.targets,
 						tTarget{
 							opFn: func() (traverser.Op, error) {
 								return traverser.Set(reflect.ValueOf(val))
@@ -244,14 +316,16 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 			}),
 		)
 
-		for decoder.Decode(&thing) == nil {
-			if len(thing) == 0 {
+		for decoder.Decode(&kp.doc) == nil {
+			if len(kp.doc) == 0 {
 				continue
 			}
 
+			kp.currentItem = kp.doc
+
 			var value interface{}
 			if selector != "" {
-				value, err = gval.Evaluate(selector, thing)
+				value, err = gval.Evaluate(selector, kp.doc)
 				if err != nil {
 					return merry.Wrap(err).WithUserMessagef("error evaluating selector: %s", err)
 				}
@@ -267,7 +341,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 							return merry.Wrap(err).WithUserMessagef("error copying merge data: %s", err)
 						}
 
-						err = mergo.Map(&thing, mCopy, mergo.WithOverride)
+						err = mergo.Map(&kp.doc, mCopy, mergo.WithOverride)
 						if err != nil {
 							return merry.Wrap(err).WithUserMessagef("error merging: %s", err)
 						}
@@ -276,23 +350,23 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 				if len(exprs) > 0 {
 					for _, expr := range exprs {
-						targets = make([]tTarget, 0)
-						sets = make([]tSet, 0)
+						kp.targets = make([]tTarget, 0)
+						//sets = make([]tSet, 0)
 
-						_, err := lang.Evaluate(expr, thing)
+						_, err := lang.Evaluate(expr, kp.doc)
 						if err != nil {
-							return merry.Wrap(err).WithUserMessagef("error evaluating action expression '%s': %s", expr, err)
+							return merry.Wrap(err).WithUserMessagef("action expression error: %s", err)
 						}
 
-						for _, s := range sets {
+						/*for _, s := range sets {
 							if err = traverser.SetKey(&thing, strings.Split(s.key, "."), s.value); err != nil {
 								return merry.Wrap(err).WithUserMessagef("could not set key '%s': %s", s.key, err)
 							}
-						}
+						}*/
 
 						t := &traverser.Traverser{
 							Node: func(keys []string, data reflect.Value) (traverser.Op, error) {
-								for _, target := range targets {
+								for _, target := range kp.targets {
 									if data == target.target {
 										return target.opFn()
 									}
@@ -301,22 +375,20 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 							},
 						}
 
-						if err = t.Traverse(reflect.ValueOf(thing)); err != nil {
+						if err = t.Traverse(reflect.ValueOf(kp.doc)); err != nil {
 							return merry.Wrap(err).WithUserMessagef("error applying changes: %s", err)
 						}
 					}
 				}
 			}
 
-			if !drop {
-				if err = encoder.Encode(thing); err != nil {
+			if !kp.drop {
+				if err = encoder.Encode(kp.doc); err != nil {
 					return merry.Wrap(err).WithUserMessagef("error encoding output: %s", err)
 				}
 			}
 
-			// Reset state
-			drop = false
-			thing = make(map[interface{}]interface{})
+			kp.Reset()
 		}
 	}
 

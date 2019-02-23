@@ -1,14 +1,18 @@
-hash: c80e0581dbcf05c6ac0db0e9e6791d9a1c01d58e07df6ef2a2d9b6153d002b29
-updated: 2019-02-19T10:00:36.917614+01:00
+hash: 395d3341080d3a5d088a4e32dcc9126a27343c9a6a48e915cda15bd0ba351c0e
+updated: 2019-02-22T16:39:57.888748+01:00
 imports:
+- name: github.com/ansel1/merry
+  version: 5429a08c10ad44bc57a5dbbf49fd44a6371fb167
 - name: github.com/imdario/mergo
   version: 7c29201646fa3de8506f701213473dd407f19646
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/mikesimons/traverser
-  version: 55d704272e603bc2173eb1f46443bea093f3df8c
+  version: de18f385bb22d5e89e7c404c9d41bb0e28fbcbd2
 - name: github.com/PaesslerAG/gval
-  version: c23e63d399d6650a8b8ad401a275a16a24c1a00e
+  version: bde2e4a3d0695e7257a75f6aede49d6e9dc92446
+  repo: git@github.com:mikesimons/gval
+  vcs: git
 - name: github.com/PaesslerAG/jsonpath
   version: 13fe51c7d94052f3f4d91bf4495c2bde50c2dfac
 - name: github.com/spf13/afero
