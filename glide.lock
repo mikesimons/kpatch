@@ -1,5 +1,5 @@
-hash: 395d3341080d3a5d088a4e32dcc9126a27343c9a6a48e915cda15bd0ba351c0e
-updated: 2019-02-22T16:39:57.888748+01:00
+hash: f31cad1aa7f813508273d745cadd937afb8523561938351c506bb5d6d980d917
+updated: 2019-02-23T01:55:56.921586+01:00
 imports:
 - name: github.com/ansel1/merry
   version: 5429a08c10ad44bc57a5dbbf49fd44a6371fb167
@@ -11,7 +11,7 @@ imports:
   version: de18f385bb22d5e89e7c404c9d41bb0e28fbcbd2
 - name: github.com/PaesslerAG/gval
   version: bde2e4a3d0695e7257a75f6aede49d6e9dc92446
-  repo: git@github.com:mikesimons/gval
+  repo: https://github.com/mikesimons/gval.git
   vcs: git
 - name: github.com/PaesslerAG/jsonpath
   version: 13fe51c7d94052f3f4d91bf4495c2bde50c2dfac

@@ -2,7 +2,7 @@ package: github.com/mikesimons/kpatch
 import:
 - package: github.com/PaesslerAG/gval
   vcs: git
-  repo: git@github.com:mikesimons/gval
+  repo: https://github.com/mikesimons/gval.git
   version: custom-ident-runes
 - package: github.com/imdario/mergo
   version: ^0.3.7
