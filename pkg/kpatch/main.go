@@ -25,11 +25,6 @@ type tTarget struct {
 	target reflect.Value
 }
 
-type tSet struct {
-	key   string
-	value interface{}
-}
-
 func getInputBytes(input string) ([]byte, error) {
 	_, err := os.Stat(input)
 	if err != nil {

@@ -120,19 +120,23 @@ var _ = Describe("Kpatch", func() {
 
 	Describe("Run", func() {
 		It("should process multiple inputs with multiple documents in each", func() {
+			var e error
 			data := dorun(func(f io.WriteCloser) {
-				Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{}, f)
+				e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{}, f)
 			})
 
+			Expect(e).To(BeNil())
 			docs := decodeDocs(data)
 			Expect(docs).To(HaveLen(4))
 		})
 
 		It("should apply all actions to documents that match the selector", func() {
+			var e error
 			data := dorun(func(f io.WriteCloser) {
-				Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document2\"", []string{}, []string{"test1 = 1", "test2 = 2"}, f)
+				e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document2\"", []string{}, []string{"test1 = 1", "test2 = 2"}, f)
 			})
 
+			Expect(e).To(BeNil())
 			docs := decodeDocs(data)
 			Expect(docs).To(HaveLen(4))
 			for i, doc := range docs {
@@ -147,20 +151,24 @@ var _ = Describe("Kpatch", func() {
 		})
 
 		It("should print documents without processing that do not match the selector", func() {
+			var e error
 			data := dorun(func(f io.WriteCloser) {
-				Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "false", []string{}, []string{}, f)
+				e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "false", []string{}, []string{}, f)
 			})
 
+			Expect(e).To(BeNil())
 			docs := decodeDocs(data)
 			Expect(docs).To(HaveLen(4))
 		})
 
 		Describe("selector", func() {
 			It("should only match documents that match expression", func() {
+				var e error
 				data := dorun(func(f io.WriteCloser) {
-					Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document1\"", []string{}, []string{"drop"}, f)
+					e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document1\"", []string{}, []string{"drop"}, f)
 				})
 
+				Expect(e).To(BeNil())
 				docs := decodeDocs(data)
 
 				Expect(docs).To(HaveLen(2))
@@ -190,12 +198,13 @@ var _ = Describe("Kpatch", func() {
 			})
 
 			It("should match all documents if not specified", func() {
+				var e error
 				data := dorun(func(f io.WriteCloser) {
-					Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{"drop"}, f)
+					e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{"drop"}, f)
 				})
 
+				Expect(e).To(BeNil())
 				docs := decodeDocs(data)
-
 				Expect(docs).To(HaveLen(0))
 			})
 		})
@@ -203,10 +212,12 @@ var _ = Describe("Kpatch", func() {
 		Describe("Action language", func() {
 			Describe("drop", func() {
 				It("should drop matching documents", func() {
+					var e error
 					data := dorun(func(f io.WriteCloser) {
-						Run([]string{"testdata/input1.yaml"}, "name == \"input1document1\"", []string{}, []string{"drop"}, f)
+						e = Run([]string{"testdata/input1.yaml"}, "name == \"input1document1\"", []string{}, []string{"drop"}, f)
 					})
 
+					Expect(e).To(BeNil())
 					docs := decodeDocs(data)
 					names := make([]string, 0)
 					for _, doc := range docs {
@@ -220,20 +231,24 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("assign", func() {
 				It("should set field if action is assignment", func() {
+					var e error
 					data := dorun(func(f io.WriteCloser) {
-						Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"maptype = \"hello\""}, f)
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"maptype = \"hello\""}, f)
 					})
 
+					Expect(e).To(BeNil())
 					docs := decodeDocs(data)
 
 					Expect(docs[0]["maptype"]).To(Equal("hello"))
 				})
 
 				It("should create key if key on left hand side does not exist", func() {
+					var e error
 					data := dorun(func(f io.WriteCloser) {
-						Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"newval = \"hello\""}, f)
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"newval = \"hello\""}, f)
 					})
 
+					Expect(e).To(BeNil())
 					docs := decodeDocs(data)
 
 					Expect(docs[0]["newval"]).To(Equal("hello"))
