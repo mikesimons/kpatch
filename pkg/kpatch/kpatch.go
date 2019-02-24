@@ -50,3 +50,7 @@ func (s *kpatch) fnIf(args ...interface{}) (interface{}, error) {
 	}
 	return r2, nil
 }
+
+func (s *kpatch) fnNil(args ...interface{}) (interface{}, error) {
+	return nil, nil
+}

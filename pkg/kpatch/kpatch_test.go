@@ -457,7 +457,17 @@ var _ = Describe("Kpatch", func() {
 			})
 
 			Describe("nil", func() {
-				PIt("should return nil")
+				It("should return nil", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"test = nil()"}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).To(BeNil())
+				})
 			})
 		})
 	})

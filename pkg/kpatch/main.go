@@ -164,9 +164,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 				return nil, nil
 			}),
 			gval.Function("if", kp.fnIf),
-			gval.Function("nil", func(args ...interface{}) (interface{}, error) {
-				return nil, nil
-			}),
+			gval.Function("nil", kp.fnNil),
 			gval.Function("parse_yaml", func(args ...interface{}) (interface{}, error) {
 				var out interface{}
 				var err error
