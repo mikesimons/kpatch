@@ -380,12 +380,6 @@ var _ = Describe("Kpatch", func() {
 				PIt("should error if argument count != 1")
 			})
 
-			Describe("__root", func() {
-				PIt("should return return root document")
-				PIt("should set key at root if used on left hand side of expression")
-				PIt("should allow merging with root of document")
-			})
-
 			Describe("b64encode", func() {
 				PIt("should base64encode input")
 				PIt("should error on problem with encode")
