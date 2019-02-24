@@ -330,18 +330,11 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 				if len(exprs) > 0 {
 					for _, expr := range exprs {
 						kp.targets = make([]tTarget, 0)
-						//sets = make([]tSet, 0)
 
 						_, err := lang.Evaluate(expr, kp.doc)
 						if err != nil {
 							return merry.Wrap(err).WithUserMessagef("action expression error: %s", err)
 						}
-
-						/*for _, s := range sets {
-							if err = traverser.SetKey(&thing, strings.Split(s.key, "."), s.value); err != nil {
-								return merry.Wrap(err).WithUserMessagef("could not set key '%s': %s", s.key, err)
-							}
-						}*/
 
 						t := &traverser.Traverser{
 							Node: func(keys []string, data reflect.Value) (traverser.Op, error) {
