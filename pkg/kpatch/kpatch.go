@@ -32,3 +32,21 @@ func (s *kpatch) fnUnset(args ...interface{}) (interface{}, error) {
 	}
 	return nil, nil
 }
+
+func (s *kpatch) fnIf(args ...interface{}) (interface{}, error) {
+	if len(args) < 2 || len(args) > 3 {
+		return nil, merry.Errorf("if(cond, istrue, [isfalse]) takes 2 or 3 arguments")
+	}
+
+	r1 := args[1]
+	var r2 interface{}
+
+	if len(args) > 2 {
+		r2 = args[2]
+	}
+
+	if args[0] == true {
+		return r1, nil
+	}
+	return r2, nil
+}

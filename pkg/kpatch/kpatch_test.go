@@ -405,11 +405,61 @@ var _ = Describe("Kpatch", func() {
 			})
 
 			Describe("if", func() {
-				PIt("should return the second argument if the first is true")
-				PIt("should return the third argument if the first is not true")
-				PIt("should accept two arguments and return nil if the first is not true")
-				PIt("should error if argument count > 3")
-				PIt("should error if argument count < 2")
+				It("should return the second argument if the first is true", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(true, "first", "second")`}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).To(Equal("first"))
+				})
+
+				It("should return the third argument if the first is not true", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false, "first", "second")`}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).To(Equal("second"))
+				})
+
+				It("should accept two arguments and return nil if the first is not true", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false, "first")`}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).To(BeNil())
+				})
+
+				It("should error if argument count > 3", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false, "first", "second", "third")`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("if(cond, istrue, [isfalse]) takes 2 or 3 arguments"))
+				})
+
+				It("should error if argument count < 2", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false)`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("if(cond, istrue, [isfalse]) takes 2 or 3 arguments"))
+				})
 			})
 
 			Describe("nil", func() {

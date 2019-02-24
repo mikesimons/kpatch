@@ -163,21 +163,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 				fmt.Print(args...)
 				return nil, nil
 			}),
-			gval.Function("if", func(args ...interface{}) (interface{}, error) {
-				var r1 interface{}
-				var r2 interface{}
-				if len(args) > 1 {
-					r1 = args[1]
-				}
-				if len(args) > 2 {
-					r2 = args[2]
-				}
-
-				if args[0] == true {
-					return r1, nil
-				}
-				return r2, nil
-			}),
+			gval.Function("if", kp.fnIf),
 			gval.Function("nil", func(args ...interface{}) (interface{}, error) {
 				return nil, nil
 			}),
