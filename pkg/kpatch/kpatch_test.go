@@ -293,6 +293,18 @@ var _ = Describe("Kpatch", func() {
 					Expect(docs[0]["maptype"]).To(BeNil())
 				})
 
+				It("should unset array elements", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"list | if(@ > 1, @) | unset(@)"}, f)
+					})
+
+					docs := decodeDocs(data)
+
+					Expect(e).To(BeNil())
+					Expect(docs[1]["list"]).To(HaveLen(1))
+				})
+
 				It("should not do anything if key does not exist", func() {
 					var e error
 					before := dorun(func(f io.WriteCloser) {

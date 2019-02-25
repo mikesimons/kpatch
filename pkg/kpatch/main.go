@@ -347,10 +347,13 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 							},
 						}
 
-						if err = t.Traverse(reflect.ValueOf(kp.doc)); err != nil {
+						result, err := t.Traverse(reflect.ValueOf(kp.doc))
+						if err != nil {
 							return merry.Wrap(err).WithUserMessagef("error applying changes: %s", err)
 						}
+						kp.doc = result.Interface().(map[interface{}]interface{})
 					}
+
 				}
 			}
 

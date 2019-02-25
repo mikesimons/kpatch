@@ -1,5 +1,5 @@
-hash: f31cad1aa7f813508273d745cadd937afb8523561938351c506bb5d6d980d917
-updated: 2019-02-23T01:55:56.921586+01:00
+hash: 47e8e5eca830016ae8ed2181c2a59fad5f7af3b989322ee24381da7c62be2329
+updated: 2019-02-25T11:30:26.848871+01:00
 imports:
 - name: github.com/ansel1/merry
   version: 5429a08c10ad44bc57a5dbbf49fd44a6371fb167
@@ -8,7 +8,7 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/mikesimons/traverser
-  version: de18f385bb22d5e89e7c404c9d41bb0e28fbcbd2
+  version: 31540fe4a4b44e0bcac1038a85371d0167d82910
 - name: github.com/PaesslerAG/gval
   version: bde2e4a3d0695e7257a75f6aede49d6e9dc92446
   repo: https://github.com/mikesimons/gval.git

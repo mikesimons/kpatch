@@ -7,7 +7,7 @@ import:
 - package: github.com/imdario/mergo
   version: ^0.3.7
 - package: github.com/mikesimons/traverser
-  version: ^0.2.1
+  version: 31540fe
 - package: github.com/spf13/cobra
   version: ^0.0.3
 - package: gopkg.in/yaml.v2
