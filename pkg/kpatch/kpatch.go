@@ -1,10 +1,13 @@
 package kpatch
 
 import (
+	"encoding/base64"
+	"fmt"
 	"reflect"
 
 	"github.com/ansel1/merry"
 	"github.com/mikesimons/traverser"
+	yaml "gopkg.in/yaml.v2"
 )
 
 type kpatch struct {
@@ -53,4 +56,60 @@ func (s *kpatch) fnIf(args ...interface{}) (interface{}, error) {
 
 func (s *kpatch) fnNil(args ...interface{}) (interface{}, error) {
 	return nil, nil
+}
+
+func (s *kpatch) fnVar(args ...interface{}) (interface{}, error) {
+	if len(args) != 1 {
+		return nil, merry.Errorf("v(path) requires exactly one argument")
+	}
+	if _, ok := args[0].([]interface{}); !ok {
+		return nil, merry.Errorf("v(path) expects path to be a slice")
+	}
+	var strArgs []string
+	for _, str := range args[0].([]interface{}) {
+		strArgs = append(strArgs, fmt.Sprintf("%v", str))
+	}
+	return traverser.GetKey(&s.doc, strArgs)
+}
+
+func (s *kpatch) fnYamlParse(args ...interface{}) (interface{}, error) {
+	if len(args) != 1 {
+		return nil, merry.Errorf("yaml_parse(input) requires exactly one argument")
+	}
+	input, ok := args[0].(string)
+	if !ok {
+		return nil, merry.Errorf("yaml_parse(input) expects input to be a string")
+	}
+
+	var out interface{}
+	var err error
+	bytes, err := getInputBytes(input)
+	if err != nil {
+		return nil, err
+	}
+	err = yaml.Unmarshal(bytes, &out)
+	return out, err
+}
+
+func (s *kpatch) fnB64Decode(args ...interface{}) (interface{}, error) {
+	if len(args) != 1 {
+		return nil, merry.Errorf("b64decode(input) requires exactly one argument")
+	}
+	input, ok := args[0].(string)
+	if !ok {
+		return nil, merry.Errorf("b64decode(input) expects input to be a string")
+	}
+	r, err := base64.StdEncoding.DecodeString(input)
+	return string(r), err
+}
+
+func (s *kpatch) fnB64Encode(args ...interface{}) (interface{}, error) {
+	if len(args) != 1 {
+		return nil, merry.Errorf("b64encode(input) requires exactly one argument")
+	}
+	input, ok := args[0].(string)
+	if !ok {
+		return nil, merry.Errorf("b64encode(input) expects input to be a string")
+	}
+	return base64.StdEncoding.EncodeToString([]byte(input)), nil
 }

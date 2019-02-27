@@ -369,8 +369,44 @@ var _ = Describe("Kpatch", func() {
 			})
 
 			Describe("v", func() {
-				PIt("should return var at path by args")
-				PIt("should return error if path invalid")
+				It("should return var at path by args", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`test = v(["maptype", "k1", "k1"])`}, f)
+					})
+
+					docs := decodeDocs(data)
+
+					Expect(e).To(BeNil())
+					Expect(docs[0]["test"]).To(Equal("l2value"))
+				})
+
+				It("should return error if arg is not a slice", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`test = v("test")`}, f)
+					})
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("v(path) expects path to be a slice"))
+				})
+
+				It("should return error if path invalid", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`v(["test"])`}, f)
+					})
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("key does not exist"))
+				})
+
+				It("should return error if argument count != 1", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`v(["test"], "other")`}, f)
+					})
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("requires exactly one argument"))
+				})
 			})
 
 			Describe("merge", func() {
@@ -379,29 +415,138 @@ var _ = Describe("Kpatch", func() {
 				PIt("should error if argument count < 2")
 			})
 
-			Describe("parse_yaml", func() {
-				PIt("should parse yaml string provided")
-				PIt("should load yaml from filesystem if file exists")
-				PIt("should error if parse error")
-				PIt("should error if argument count != 1")
+			Describe("yaml_parse", func() {
+				It("should parse yaml string provided", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = yaml_parse("{ key: val }")`}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).NotTo(BeNil())
+					test := docs[0]["test"].(map[interface{}]interface{})
+					Expect(test["key"]).To(Equal("val"))
+				})
+
+				It("should load yaml from filesystem if file exists", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = yaml_parse("testdata/yaml.yaml")`}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).NotTo(BeNil())
+					test := docs[0]["test"].(map[interface{}]interface{})
+					Expect(test["test"]).To(Equal(1234))
+				})
+
+				It("should error on a parse error", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = yaml_parse("{{{ x")`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("yaml: line 1: did not find expected"))
+				})
+
+				It("should error if argument is not a string", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`yaml_parse([])`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("expects input to be a string"))
+				})
+
+				It("should error if argument count != 1", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`yaml_parse()`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("requires exactly one argument"))
+				})
 			})
 
-			Describe("dump_yaml", func() {
-				PIt("should dump yaml string provided")
+			Describe("yaml_dump", func() {
+				PIt("should return variable as yaml string provided")
 				PIt("should error if input can't be marshalled")
 				PIt("should error if argument count != 1")
 			})
 
 			Describe("b64encode", func() {
-				PIt("should base64encode input")
-				PIt("should error on problem with encode")
-				PIt("should error if argument count != 1")
+				It("should base64 encode input", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64encode("test")`}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).To(Equal("dGVzdA=="))
+				})
+
+				It("should error if argument count != 1", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64encode()`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("requires exactly one argument"))
+				})
 			})
 
 			Describe("b64decode", func() {
-				PIt("should bas64decode input")
-				PIt("should error on problem with decode")
-				PIt("should error if argument count != 1")
+				It("should base64 decode input", func() {
+					var e error
+					data := dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode("dGVzdA==")`}, f)
+					})
+
+					Expect(e).To(BeNil())
+
+					docs := decodeDocs(data)
+					Expect(docs[0]["test"]).To(Equal("test"))
+				})
+
+				It("should error on problem with decode", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode("XXXXXXX")`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("illegal base64 data"))
+				})
+
+				It("should error if argument count != 1", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode()`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("requires exactly one argument"))
+				})
+
+				It("should error if first argument is not a string", func() {
+					var e error
+					dorun(func(f io.WriteCloser) {
+						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode([])`}, f)
+					})
+
+					Expect(e).NotTo(BeNil())
+					Expect(merry.UserMessage(e)).To(ContainSubstring("expects input to be a string"))
+				})
 			})
 
 			Describe("pipe operator", func() {

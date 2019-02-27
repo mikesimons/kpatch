@@ -2,14 +2,12 @@ package kpatch
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
-	"strings"
 
 	"github.com/ansel1/merry"
 
@@ -64,6 +62,21 @@ func getMergeData(merges []string) ([]map[interface{}]interface{}, error) {
 	return mergeData, nil
 }
 
+/*
+type gvalFn func(args ...interface{}) (interface{}, error)
+
+func mutatingFn(fn gvalFn, kp *kpatch) gvalFn {
+	return func(args ...interface{}) (interface{}, error) {
+		val, err := fn(args...)
+		if err != nil {
+			return val, err
+		}
+		kp.targets = append(kp.targets, tTarget{opFn: func() (traverser.Op, error) { return traverser.Set(reflect.ValueOf(val)) }, target: reflect.ValueOf(args[0])})
+		return val, nil
+	}
+}
+*/
+
 func Run(args []string, selector string, merges []string, exprs []string, output io.WriteCloser) error {
 	var err error
 	var input io.Reader
@@ -92,34 +105,28 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 		lang := gval.NewLanguage(gval.Full(),
 			gval.PostfixOperator("|", func(c context.Context, p *gval.Parser, e gval.Evaluable) (gval.Evaluable, error) {
-				// a = after operator
-				a, err := p.ParseExpression(c)
+				pre, err := p.ParseExpression(c)
 				if err != nil {
 					return nil, err
 				}
 
 				return func(c context.Context, v interface{}) (interface{}, error) {
-
-					// x = before operator
-					x, err := e(c, v)
+					input, err := e(c, v)
 					if err != nil {
 						return nil, err
 					}
 
 					// Make input a slice if it's not already
-					if reflect.ValueOf(x).Kind() != reflect.Slice {
-						x = []interface{}{x}
+					if reflect.ValueOf(input).Kind() != reflect.Slice {
+						input = []interface{}{input}
 					}
 
 					// Apply RHS for every element of LHS
 					var out []interface{}
-					for _, item := range x.([]interface{}) {
+					for _, item := range input.([]interface{}) {
 						tmp := kp.currentItem
 						kp.currentItem = item
-						z, err := a(c, v)
-						if err != nil {
-							log.Fatal("pipeline error: ", err)
-						}
+						z, _ := pre(c, v)
 						if z != nil {
 							out = append(out, z)
 						}
@@ -159,23 +166,28 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 					return val, err
 				}
 			}),
+			gval.Function("splice_replace", func(args ...interface{}) (interface{}, error) {
+				kp.targets = append(
+					kp.targets,
+					tTarget{
+						opFn: func() (traverser.Op, error) {
+							return traverser.Splice(reflect.ValueOf(args[1]))
+						},
+						target: reflect.ValueOf(args[0]),
+					},
+				)
+				return nil, nil
+			}),
 			gval.Function("print", func(args ...interface{}) (interface{}, error) {
 				fmt.Print(args...)
 				return nil, nil
 			}),
 			gval.Function("if", kp.fnIf),
 			gval.Function("nil", kp.fnNil),
-			gval.Function("parse_yaml", func(args ...interface{}) (interface{}, error) {
-				var out interface{}
-				var err error
-				bytes, err := getInputBytes(args[0].(string))
-				if err != nil {
-					return nil, err
-				}
-				err = yaml.Unmarshal(bytes, &out)
-				return out, err
-			}),
-			gval.Function("dump_yaml", func(args ...interface{}) (interface{}, error) {
+			gval.Function("yaml_parse", kp.fnYamlParse),
+			//gval.Function("YAML_PARSE", mutatingFn(kp.fnYamlParse, kp)),
+
+			gval.Function("yaml_dump", func(args ...interface{}) (interface{}, error) {
 				r, err := yaml.Marshal(args[0])
 				return string(r), err
 			}),
@@ -197,30 +209,28 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 				return out, nil
 			}),
-			gval.Function("v", func(args ...interface{}) (interface{}, error) {
-				if len(args) == 1 {
-					args = append(args, "/")
-				}
-				strArgs := strings.Split(args[0].(string), args[1].(string))
-				return traverser.GetKey(&kp.doc, strArgs)
-			}),
+			gval.Function("v", kp.fnVar),
 			gval.Function("unset", kp.fnUnset),
 			gval.Function("drop", func(args ...interface{}) (interface{}, error) {
 				kp.drop = true
 				return nil, nil
 			}),
-			gval.Function("b64decode", func(args ...interface{}) (interface{}, error) {
-				r, err := base64.StdEncoding.DecodeString(args[0].(string))
-				return string(r), err
+			gval.Function("concat", func(args ...interface{}) (interface{}, error) {
+				var out []interface{}
+				for _, arg := range args {
+					v, ok := arg.([]interface{})
+					if !ok {
+						out = append(out, arg)
+						continue
+					}
+					out = append(out, v...)
+				}
+				return out, nil
 			}),
-			gval.Function("b64encode", func(args ...interface{}) (interface{}, error) {
-				return base64.StdEncoding.EncodeToString([]byte(args[0].(string))), nil
-			}),
-			gval.Function("B64ENCODE", func(args ...interface{}) (interface{}, error) {
-				val := base64.StdEncoding.EncodeToString([]byte(args[0].(string)))
-				kp.targets = append(kp.targets, tTarget{opFn: func() (traverser.Op, error) { return traverser.Set(reflect.ValueOf(val)) }, target: reflect.ValueOf(args[0])})
-				return nil, nil
-			}),
+			gval.Function("b64decode", kp.fnB64Decode),
+			gval.Function("b64encode", kp.fnB64Encode),
+			//gval.Function("B64ENCODE", mutatingFn(kp.fnB64Encode, kp)),
+			//gval.Function("B64DECODE", mutatingFn(kp.fnB64Decode, kp)),
 			gval.InfixEvalOperator("=", func(a, b gval.Evaluable) (gval.Evaluable, error) {
 				if !b.IsConst() {
 					return func(c context.Context, o interface{}) (interface{}, error) {
