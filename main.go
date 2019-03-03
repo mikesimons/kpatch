@@ -15,12 +15,13 @@ func main() {
 	var selector string
 	var merges []string
 	var exprs []string
+	var params []string
 
 	cmd := &cobra.Command{
 		Use:     "kpatch",
 		Version: versionString,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := kpatch.Run(args, selector, merges, exprs, os.Stdout)
+			err := kpatch.Run(args, selector, merges, exprs, params, os.Stdout)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -30,6 +31,7 @@ func main() {
 	cmd.Flags().StringVarP(&selector, "selector", "s", "", "Document selector to specify which to apply expressions / merges to.")
 	cmd.Flags().StringArrayVarP(&merges, "merge", "m", merges, "YAML/JSON file or inline YAML/JSON to merge with selected documents. May be used more than once.")
 	cmd.Flags().StringArrayVarP(&exprs, "action", "a", exprs, "Action expression to apply to selected documents. May be used more than once.")
+	cmd.Flags().StringArrayVarP(&params, "params", "p", params, "Parameters to be used in action expressions.")
 
 	err := cmd.Execute()
 	if err != nil {

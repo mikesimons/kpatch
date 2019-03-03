@@ -2,7 +2,6 @@ package kpatch
 
 import (
 	"bytes"
-	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -16,16 +15,33 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+type RunParams struct {
+	Files    []string
+	Selector string
+	Merges   []string
+	Actions  []string
+	Params   []string
+}
+
+func DefaultRunParams() RunParams {
+	return RunParams{
+		Files: []string{"testdata/input1.yaml", "testdata/input2.yaml"},
+	}
+}
+
 func TestKpatch(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Kpatch Suite")
 }
 
-func dorun(fn func(f io.WriteCloser)) []byte {
+func dorun(fn func(rp *RunParams)) ([]byte, error) {
 	fs := afero.NewMemMapFs()
 	f, _ := fs.OpenFile("output.yaml", os.O_CREATE|os.O_WRONLY, os.ModeAppend)
 
-	fn(f)
+	rp := DefaultRunParams()
+	fn(&rp)
+
+	e := Run(rp.Files, rp.Selector, rp.Merges, rp.Actions, rp.Params, f)
 	f.Close()
 
 	f, _ = fs.Open("output.yaml")
@@ -33,7 +49,7 @@ func dorun(fn func(f io.WriteCloser)) []byte {
 
 	data, _ := ioutil.ReadAll(f)
 
-	return data
+	return data, e
 }
 
 func decodeDocs(input []byte) []map[interface{}]interface{} {
@@ -120,10 +136,7 @@ var _ = Describe("Kpatch", func() {
 
 	Describe("Run", func() {
 		It("should process multiple inputs with multiple documents in each", func() {
-			var e error
-			data := dorun(func(f io.WriteCloser) {
-				e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{}, f)
-			})
+			data, e := dorun(func(rp *RunParams) {})
 
 			Expect(e).To(BeNil())
 			docs := decodeDocs(data)
@@ -131,9 +144,9 @@ var _ = Describe("Kpatch", func() {
 		})
 
 		It("should apply all actions to documents that match the selector", func() {
-			var e error
-			data := dorun(func(f io.WriteCloser) {
-				e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document2\"", []string{}, []string{"test1 = 1", "test2 = 2"}, f)
+			data, e := dorun(func(rp *RunParams) {
+				rp.Selector = `name =~ ".*document2"`
+				rp.Actions = []string{`test1 = 1`, `test2 = 2`}
 			})
 
 			Expect(e).To(BeNil())
@@ -151,9 +164,8 @@ var _ = Describe("Kpatch", func() {
 		})
 
 		It("should print documents without processing that do not match the selector", func() {
-			var e error
-			data := dorun(func(f io.WriteCloser) {
-				e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "false", []string{}, []string{}, f)
+			data, e := dorun(func(rp *RunParams) {
+				rp.Selector = `false`
 			})
 
 			Expect(e).To(BeNil())
@@ -163,9 +175,9 @@ var _ = Describe("Kpatch", func() {
 
 		Describe("selector", func() {
 			It("should only match documents that match expression", func() {
-				var e error
-				data := dorun(func(f io.WriteCloser) {
-					e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "name =~ \".*document1\"", []string{}, []string{"drop"}, f)
+				data, e := dorun(func(rp *RunParams) {
+					rp.Selector = `name =~ ".*document1"`
+					rp.Actions = []string{`drop`}
 				})
 
 				Expect(e).To(BeNil())
@@ -177,9 +189,8 @@ var _ = Describe("Kpatch", func() {
 			})
 
 			It("should not allow assignments in selector", func() {
-				var e error
-				dorun(func(f io.WriteCloser) {
-					e = Run([]string{"testdata/input1.yaml"}, "test = 123", []string{}, []string{}, f)
+				_, e := dorun(func(rp *RunParams) {
+					rp.Selector = `test = 123`
 				})
 
 				Expect(e).NotTo(BeNil())
@@ -188,9 +199,8 @@ var _ = Describe("Kpatch", func() {
 
 			// TODO: Expand to other mutating functions (e.g. merge)
 			It("should not allow mutating functions in selector", func() {
-				var e error
-				dorun(func(f io.WriteCloser) {
-					e = Run([]string{"testdata/input1.yaml"}, "unset(name)", []string{}, []string{}, f)
+				_, e := dorun(func(rp *RunParams) {
+					rp.Selector = `unset(name)`
 				})
 
 				Expect(e).NotTo(BeNil())
@@ -198,9 +208,8 @@ var _ = Describe("Kpatch", func() {
 			})
 
 			It("should match all documents if not specified", func() {
-				var e error
-				data := dorun(func(f io.WriteCloser) {
-					e = Run([]string{"testdata/input1.yaml", "testdata/input2.yaml"}, "", []string{}, []string{"drop"}, f)
+				data, e := dorun(func(rp *RunParams) {
+					rp.Actions = []string{`drop`}
 				})
 
 				Expect(e).To(BeNil())
@@ -212,9 +221,9 @@ var _ = Describe("Kpatch", func() {
 		Describe("Action language", func() {
 			Describe("drop", func() {
 				It("should drop matching documents", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "name == \"input1document1\"", []string{}, []string{"drop"}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Selector = `name == "input1document1"`
+						rp.Actions = []string{`drop`}
 					})
 
 					Expect(e).To(BeNil())
@@ -224,16 +233,15 @@ var _ = Describe("Kpatch", func() {
 						names = append(names, doc["name"].(string))
 					}
 
-					Expect(names).To(HaveLen(1))
+					Expect(names).To(HaveLen(3))
 					Expect(names).NotTo(ContainElement("input1document1"))
 				})
 			})
 
 			Describe("assign", func() {
 				It("should set field if action is assignment", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"maptype = \"hello\""}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`maptype = "hello"`}
 					})
 
 					Expect(e).To(BeNil())
@@ -243,9 +251,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should create key if key on left hand side does not exist", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"newval = \"hello\""}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`newval = "hello"`}
 					})
 
 					Expect(e).To(BeNil())
@@ -255,9 +262,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should assign nil if key on right hand side does not exist", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"maptype = noexist"}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`maptype = noexist`}
 					})
 
 					Expect(e).To(BeNil())
@@ -269,9 +275,8 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("unset", func() {
 				It("should unset field", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset(name)"}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`unset(name)`}
 					})
 
 					docs := decodeDocs(data)
@@ -281,9 +286,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should unset multiple fields", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset(name, maptype)"}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`unset(name, maptype)`}
 					})
 
 					docs := decodeDocs(data)
@@ -294,9 +298,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should unset array elements", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"list | if(@ > 1, @) | unset(@)"}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`list | if(@ > 1, @) | unset(@)`}
 					})
 
 					docs := decodeDocs(data)
@@ -306,13 +309,11 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should not do anything if key does not exist", func() {
-					var e error
-					before := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{}, f)
-					})
+					before, e := dorun(func(rp *RunParams) {})
+					Expect(e).To(BeNil())
 
-					after := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset(n)"}, f)
+					after, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`unset(n)`}
 					})
 
 					Expect(e).To(BeNil())
@@ -320,9 +321,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if argument count < 1", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"unset()"}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`unset()`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -332,13 +332,11 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("@ variable", func() {
 				It("should return root outside of pipeline", func() {
-					var e error
-					before := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{}, f)
-					})
+					before, e := dorun(func(rp *RunParams) {})
+					Expect(e).To(BeNil())
 
-					after := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"tmp = @"}, f)
+					after, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`tmp = @`}
 					})
 
 					docsBefore := decodeDocs(before)
@@ -350,9 +348,9 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should return current item inside pipeline", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "name == \"input1document2\"", []string{}, []string{"list | @ = \"X\""}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Selector = `name == "input1document2"`
+						rp.Actions = []string{`list | @ = "X"`}
 					})
 
 					docs := decodeDocs(data)
@@ -370,9 +368,9 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("v", func() {
 				It("should return var at path by args", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`test = v(["maptype", "k1", "k1"])`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Selector = `name == "input1document1"`
+						rp.Actions = []string{`test = v(["maptype", "k1", "k1"])`}
 					})
 
 					docs := decodeDocs(data)
@@ -382,28 +380,31 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should return error if arg is not a slice", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`test = v("test")`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Selector = `name == "input1document1"`
+						rp.Actions = []string{`test = v("test")`}
 					})
+
 					Expect(e).NotTo(BeNil())
 					Expect(merry.UserMessage(e)).To(ContainSubstring("v(path) expects path to be a slice"))
 				})
 
 				It("should return error if path invalid", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`v(["test"])`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Selector = `name == "input1document1"`
+						rp.Actions = []string{`v(["test"])`}
 					})
+
 					Expect(e).NotTo(BeNil())
 					Expect(merry.UserMessage(e)).To(ContainSubstring("key does not exist"))
 				})
 
 				It("should return error if argument count != 1", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, `name == "input1document1"`, []string{}, []string{`v(["test"], "other")`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Selector = `name == "input1document1"`
+						rp.Actions = []string{`v(["test"], "other")`}
 					})
+
 					Expect(e).NotTo(BeNil())
 					Expect(merry.UserMessage(e)).To(ContainSubstring("requires exactly one argument"))
 				})
@@ -417,9 +418,8 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("yaml_parse", func() {
 				It("should parse yaml string provided", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = yaml_parse("{ key: val }")`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = yaml_parse("{ key: val }")`}
 					})
 
 					Expect(e).To(BeNil())
@@ -431,9 +431,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should load yaml from filesystem if file exists", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = yaml_parse("testdata/yaml.yaml")`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = yaml_parse("testdata/yaml.yaml")`}
 					})
 
 					Expect(e).To(BeNil())
@@ -445,9 +444,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error on a parse error", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = yaml_parse("{{{ x")`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = yaml_parse("{{{ x")`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -455,9 +453,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if argument is not a string", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`yaml_parse([])`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`yaml_parse([])`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -465,9 +462,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if argument count != 1", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`yaml_parse()`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`yaml_parse()`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -483,9 +479,8 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("b64encode", func() {
 				It("should base64 encode input", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64encode("test")`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = b64encode("test")`}
 					})
 
 					Expect(e).To(BeNil())
@@ -495,9 +490,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if argument count != 1", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64encode()`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = b64encode()`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -507,9 +501,8 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("b64decode", func() {
 				It("should base64 decode input", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode("dGVzdA==")`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = b64decode("dGVzdA==")`}
 					})
 
 					Expect(e).To(BeNil())
@@ -519,9 +512,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error on problem with decode", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode("XXXXXXX")`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = b64decode("XXXXXXX")`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -529,9 +521,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if argument count != 1", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode()`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = b64decode()`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -539,9 +530,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if first argument is not a string", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = b64decode([])`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = b64decode([])`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -557,9 +547,8 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("if", func() {
 				It("should return the second argument if the first is true", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(true, "first", "second")`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = if(true, "first", "second")`}
 					})
 
 					Expect(e).To(BeNil())
@@ -569,9 +558,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should return the third argument if the first is not true", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false, "first", "second")`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = if(false, "first", "second")`}
 					})
 
 					Expect(e).To(BeNil())
@@ -581,9 +569,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should accept two arguments and return nil if the first is not true", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false, "first")`}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = if(false, "first")`}
 					})
 
 					Expect(e).To(BeNil())
@@ -593,9 +580,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if argument count > 3", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false, "first", "second", "third")`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = if(false, "first", "second", "third")`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -603,9 +589,8 @@ var _ = Describe("Kpatch", func() {
 				})
 
 				It("should error if argument count < 2", func() {
-					var e error
-					dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{`test = if(false)`}, f)
+					_, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = if(false)`}
 					})
 
 					Expect(e).NotTo(BeNil())
@@ -615,9 +600,8 @@ var _ = Describe("Kpatch", func() {
 
 			Describe("nil", func() {
 				It("should return nil", func() {
-					var e error
-					data := dorun(func(f io.WriteCloser) {
-						e = Run([]string{"testdata/input1.yaml"}, "", []string{}, []string{"test = nil()"}, f)
+					data, e := dorun(func(rp *RunParams) {
+						rp.Actions = []string{`test = nil()`}
 					})
 
 					Expect(e).To(BeNil())
