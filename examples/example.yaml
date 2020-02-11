@@ -1,0 +1,6 @@
+my_command:
+  - ./command
+  - --arg 1234
+  - --arg 5678
+  - --otherarg 0123
+  - somefile.yaml

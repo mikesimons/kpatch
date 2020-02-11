@@ -1,0 +1,38 @@
+cluster_role.yaml:
+  - selector: @params.rbac.create && @params.clusterAgent.enabled
+    action: |
+      @ = load("cluster_role.yaml")
+
+  - selector: @params.datadog.collectEvents
+    action: |
+      concat(rules, load("collect_events.yaml"))
+
+  - selector: @params.clusterAgent.metricsProvider.enabled
+    action: |
+      rules |
+      if(@.resourceNames =~ "datadog-leader-election", @) |
+      @ = concat(@, [
+        "datadog-custom-metrics",
+        "extension-apiserver-authentication"
+      ])
+
+---
+feature: Enables the cluster agent
+selector: @params.clusterAgent.enabled
+actions:
+  # loads a document and sets a tag on it with filename
+  - load: clusterAgent/secret.yaml
+  - load: clusterAgent/service.yaml
+  - load: clusterAgent/clusterrole.yaml
+  - load: clusterAgent/serviceaccount.yaml
+  - selector: @params.datadog.collectEvents && hastag("clusterAgent/clusterrole.yaml")
+    actions:
+      - concat(rules, load("collect_events.yaml"))
+---
+feature: metricsProvider
+selector: @params.clusterAgent.enabled && @params.clusterAgent.metricsProvider.enabled
+actions:
+  - selector: hastag("clusterAgent/clusterrole.yaml")
+    actions:
+      # returns node marked for injection
+      - injection("clusteragent.mp.rules") = ["datadog-custom-metrics", "extension-apiserver-authentication"]
