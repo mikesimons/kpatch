@@ -16,6 +16,7 @@ type kpatch struct {
 	drop           bool
 	doc            map[interface{}]interface{}
 	currentItem    interface{}
+	currentKey     interface{}
 }
 
 func (s *kpatch) Reset() {
@@ -112,4 +113,9 @@ func (s *kpatch) fnB64Encode(args ...interface{}) (interface{}, error) {
 		return nil, merry.Errorf("b64encode(input) expects input to be a string")
 	}
 	return base64.StdEncoding.EncodeToString([]byte(input)), nil
+}
+
+func (s *kpatch) fnDrop(args ...interface{}) (interface{}, error) {
+	s.drop = true
+	return nil, nil
 }

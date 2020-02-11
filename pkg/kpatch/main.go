@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/ansel1/merry"
 
@@ -62,6 +63,30 @@ func getMergeData(merges []string) ([]map[interface{}]interface{}, error) {
 	return mergeData, nil
 }
 
+func getParamData(params []string) (map[interface{}]interface{}, error) {
+	var paramData map[interface{}]interface{}
+	if len(params) > 0 {
+		for _, p := range params {
+			tmp := make(map[interface{}]interface{})
+			tmpBytes, err := getInputBytes(p)
+			if err != nil {
+				return nil, fmt.Errorf("error loading parameters '%s': %s", p, err)
+			}
+
+			err = yaml.Unmarshal(tmpBytes, &tmp)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing parameters '%s': %s", p, err)
+			}
+
+			err = mergo.Map(&paramData, tmp, mergo.WithOverride)
+			if err != nil {
+				return nil, fmt.Errorf("error merging parameters: %s", err)
+			}
+		}
+	}
+	return paramData, nil
+}
+
 /*
 type gvalFn func(args ...interface{}) (interface{}, error)
 
@@ -77,8 +102,10 @@ func mutatingFn(fn gvalFn, kp *kpatch) gvalFn {
 }
 */
 
-func Run(args []string, selector string, merges []string, exprs []string, output io.WriteCloser) error {
+func Run(args []string, selector string, merges []string, exprs []string, params []string, output io.WriteCloser) error {
 	var err error
+	var ops []string
+
 	var input io.Reader
 	defer output.Close()
 	encoder := yaml.NewEncoder(output)
@@ -93,6 +120,11 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 		decoder := yaml.NewDecoder(input)
 
+		paramData, err := getParamData(params)
+		if err != nil {
+			return merry.Wrap(err)
+		}
+
 		mergeData, err := getMergeData(merges)
 		if err != nil {
 			return merry.Wrap(err)
@@ -105,32 +137,62 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 		lang := gval.NewLanguage(gval.Full(),
 			gval.PostfixOperator("|", func(c context.Context, p *gval.Parser, e gval.Evaluable) (gval.Evaluable, error) {
+				//ops = append(ops, "postfix operator invoked")
 				pre, err := p.ParseExpression(c)
 				if err != nil {
 					return nil, err
 				}
 
+				level := 0
 				return func(c context.Context, v interface{}) (interface{}, error) {
 					input, err := e(c, v)
 					if err != nil {
 						return nil, err
 					}
+					//ops = append(ops, fmt.Sprintf("\n%d - inner invoke: %v", level, input))
 
-					// Make input a slice if it's not already
-					if reflect.ValueOf(input).Kind() != reflect.Slice {
-						input = []interface{}{input}
+					kind := reflect.ValueOf(input).Kind()
+
+					if level == 1 {
+						// Make input a slice if it's not a slice / map
+						if kind != reflect.Slice && kind != reflect.Map {
+							input = []interface{}{input}
+							//kind = reflect.Slice
+						}
+					} else {
+						if kind != reflect.Slice {
+							input = []interface{}{input}
+							kind = reflect.Slice
+						}
 					}
 
-					// Apply RHS for every element of LHS
+					// map + slice can use same implementation but range needs to assert differently
+					// so we move logic up to this fn to avoid duplication
 					var out []interface{}
-					for _, item := range input.([]interface{}) {
+					apply := func(key interface{}, item interface{}) {
+						//ops = append(ops, fmt.Sprintf("\n%d apply invoke: %v", level, item))
+						tmpKey := kp.currentKey
 						tmp := kp.currentItem
+						kp.currentKey = key
 						kp.currentItem = item
 						z, _ := pre(c, v)
 						if z != nil {
 							out = append(out, z)
 						}
+						kp.currentKey = tmpKey
 						kp.currentItem = tmp
+					}
+
+					// Apply RHS for every element of LHS
+					switch kind {
+					case reflect.Slice:
+						for key, item := range input.([]interface{}) {
+							apply(key, item)
+						}
+					case reflect.Map:
+						for key, item := range input.(map[interface{}]interface{}) {
+							apply(key, item)
+						}
 					}
 
 					return out, nil
@@ -149,6 +211,14 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 
 					if len(keys) == 0 {
 						return root, nil
+					}
+
+					if keys[0] == "@params" {
+						return traverser.GetKey(paramData, keys[1:])
+					}
+
+					if keys[0] == "@key" {
+						return kp.currentKey, nil
 					}
 
 					val, err := traverser.GetKey(&root, keys)
@@ -176,10 +246,6 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 						target: reflect.ValueOf(args[0]),
 					},
 				)
-				return nil, nil
-			}),
-			gval.Function("print", func(args ...interface{}) (interface{}, error) {
-				fmt.Print(args...)
 				return nil, nil
 			}),
 			gval.Function("if", kp.fnIf),
@@ -211,10 +277,7 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 			}),
 			gval.Function("v", kp.fnVar),
 			gval.Function("unset", kp.fnUnset),
-			gval.Function("drop", func(args ...interface{}) (interface{}, error) {
-				kp.drop = true
-				return nil, nil
-			}),
+			gval.Function("drop", kp.fnDrop),
 			gval.Function("concat", func(args ...interface{}) (interface{}, error) {
 				var out []interface{}
 				for _, arg := range args {
@@ -231,6 +294,31 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 			gval.Function("b64encode", kp.fnB64Encode),
 			//gval.Function("B64ENCODE", mutatingFn(kp.fnB64Encode, kp)),
 			//gval.Function("B64DECODE", mutatingFn(kp.fnB64Decode, kp)),
+			gval.Function("prefix", func(args ...interface{}) (interface{}, error) {
+				if strings.HasPrefix(args[0].(string), args[1].(string)) {
+					return args[0], nil
+				}
+				return fmt.Sprintf("%s%s", args[1], args[0]), nil
+			}),
+			gval.Function("suffix", func(args ...interface{}) (interface{}, error) {
+				if strings.HasSuffix(args[0].(string), args[1].(string)) {
+					return args[0], nil
+				}
+				return fmt.Sprintf("%s%s", args[0], args[1]), nil
+			}),
+			gval.Function("split", func(args ...interface{}) (interface{}, error) {
+				return strings.Split(args[0].(string), args[1].(string)), nil
+			}),
+			gval.Function("join", func(args ...interface{}) (interface{}, error) {
+				return strings.Join(args[0].([]string), args[1].(string)), nil
+			}),
+			gval.Function("upper", func(args ...interface{}) (interface{}, error) {
+				return strings.ToUpper(args[0].(string)), nil
+			}),
+			gval.Function("print", func(args ...interface{}) (interface{}, error) {
+				fmt.Printf("%#v\n", args[0])
+				return nil, nil
+			}),
 			gval.InfixEvalOperator("=", func(a, b gval.Evaluable) (gval.Evaluable, error) {
 				if !b.IsConst() {
 					return func(c context.Context, o interface{}) (interface{}, error) {
@@ -380,6 +468,8 @@ func Run(args []string, selector string, merges []string, exprs []string, output
 	if err != nil {
 		return merry.Wrap(err).WithUserMessagef("unknown error: %s", err)
 	}
+
+	fmt.Printf("%s", strings.Join(ops, "\n"))
 
 	return nil
 }

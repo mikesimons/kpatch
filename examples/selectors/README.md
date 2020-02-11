@@ -5,7 +5,7 @@ The selector will be evaluated against each document in the input stream.
 
 Since gval is a pretty full featured expression language covering it all is not possible but listed below are some things to give you an idea.
 
-We're using the (drop)[../drop] function to make it clear which documents are being (because they go missing).
+We're using the (drop)[../drop] function to make it clear which documents are being selected (because they go missing).
 
 ## Field match
 ```

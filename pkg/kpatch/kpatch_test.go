@@ -610,6 +610,54 @@ var _ = Describe("Kpatch", func() {
 					Expect(docs[0]["test"]).To(BeNil())
 				})
 			})
+
+			Describe("prefix", func() {
+				PIt("should add prefix to input if not present")
+				PIt("should not prefix input if prefix already present")
+				PIt("should error if args are not strings")
+				PIt("should error if argument count < 2")
+				PIt("should error if argument count > 2")
+			})
+
+			Describe("suffix", func() {
+				PIt("should add suffix to input if not present")
+				PIt("should not suffix input if suffix already present")
+				PIt("should error if args are not strings")
+				PIt("should error if argument count < 2")
+				PIt("should error if argument count > 2")
+			})
+
+			Describe("split", func() {
+				PIt("should split input on separator")
+				PIt("should return input in slice if separator not present")
+				PIt("should error if argument count < 2")
+				PIt("should error if argument count > 2")
+			})
+
+			Describe("join", func() {
+				PIt("should join input with separator")
+				PIt("should return input as string if input is slice with single item")
+				PIt("should error if argument count < 2")
+				PIt("should error if argument count > 2")
+			})
+
+			Describe("upper", func() {
+				PIt("should uppercase input")
+			})
+
+			Describe("lower", func() {
+				PIt("should lowercase input")
+			})
+
+			Describe("concat", func() {
+				PIt("should concatenate strings")
+				PIt("should append slices")
+				PIt("should error if slices are incompatible types")
+			})
+
+			Describe("splice_replace", func() {
+				PIt("should inject multiple slice elements in place of the target item")
+			})
 		})
 	})
 })
